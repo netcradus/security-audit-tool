@@ -1,15 +1,25 @@
-from fastapi import APIRouter
+from fastapi import (
+    APIRouter,
+    Request,
+    HTTPException
+)
+
 from pydantic import BaseModel
 from uuid import uuid4
 
 from concurrent.futures import ThreadPoolExecutor
 
 from app.core.scan_runner import run_full_scan
+from app.core.limiter import limiter
 
 from app.storage.history import (
     create_scan,
     get_scan,
     get_all_scans
+)
+
+from app.utils.validators import (
+    is_valid_target
 )
 
 # =====================================
@@ -34,26 +44,50 @@ class ScanRequest(BaseModel):
 # =====================================
 
 @router.post('/scan')
-def start_scan(request: ScanRequest):
+@limiter.limit("5/minute")
+
+def start_scan(
+    request: Request,
+    payload: ScanRequest
+):
+
+    # =================================
+    # TARGET VALIDATION
+    # =================================
+
+    if not is_valid_target(
+        payload.target
+    ):
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or private target"
+        )
+
+    # =================================
+    # CREATE SCAN
+    # =================================
 
     scan_id = str(uuid4())
 
-    # Create DB entry
     create_scan(
         scan_id,
-        request.target
+        payload.target
     )
 
-    # Run scan in background thread
+    # =================================
+    # RUN SCAN
+    # =================================
+
     executor.submit(
         run_full_scan,
         scan_id,
-        request.target
+        payload.target
     )
 
     return {
-        'scan_id': scan_id,
-        'status': 'started'
+        "scan_id": scan_id,
+        "status": "started"
     }
 
 # =====================================
@@ -61,23 +95,27 @@ def start_scan(request: ScanRequest):
 # =====================================
 
 @router.get('/scan/{scan_id}')
+
 def get_scan_result(scan_id: str):
 
     scan = get_scan(scan_id)
 
     if not scan:
 
-        return {
-            'error': 'Scan not found'
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Scan not found"
+        )
 
     return scan
 
 # =====================================
-# GET ALL HISTORY
+# GET HISTORY
 # =====================================
 
 @router.get('/history')
-def history():
+@limiter.limit("30/minute")
+
+def history(request: Request):
 
     return get_all_scans()
