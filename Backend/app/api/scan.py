@@ -1,7 +1,8 @@
 from fastapi import (
     APIRouter,
     Request,
-    HTTPException
+    HTTPException,
+    Depends
 )
 
 from pydantic import BaseModel
@@ -22,6 +23,11 @@ from app.utils.validators import (
     is_valid_target
 )
 
+
+
+from app.middleware.auth import (
+    verify_api_key
+)
 # =====================================
 # THREAD EXECUTOR
 # =====================================
@@ -43,7 +49,10 @@ class ScanRequest(BaseModel):
 # START SCAN
 # =====================================
 
-@router.post('/scan')
+@router.post(
+    '/scan',
+    dependencies=[Depends(verify_api_key)]
+)
 @limiter.limit("5/minute")
 
 def start_scan(
@@ -94,7 +103,7 @@ def start_scan(
 # GET SINGLE SCAN
 # =====================================
 
-@router.get('/scan/{scan_id}')
+@router.get('/scan/{scan_id}',dependencies=[Depends(verify_api_key)])
 
 def get_scan_result(scan_id: str):
 
@@ -113,7 +122,10 @@ def get_scan_result(scan_id: str):
 # GET HISTORY
 # =====================================
 
-@router.get('/history')
+@router.get(
+    '/history',
+    dependencies=[Depends(verify_api_key)]
+)
 @limiter.limit("30/minute")
 
 def history(request: Request):
