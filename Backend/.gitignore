@@ -1,0 +1,15 @@
+venv/
+__pycache__/
+*.pyc
+
+.env
+
+reports/
+*.pdf
+
+.idea/
+.vscode/
+
+.history/
+
+*.log

@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-nmap
+requests
+python-owasp-zap-v2.4
+reportlab
+matplotlib
+cryptography
+python-dotenv
