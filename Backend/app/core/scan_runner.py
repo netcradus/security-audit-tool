@@ -8,103 +8,129 @@ from app.scanners.cookie_analyzer import analyze_cookies
 from app.scanners.ssl_expiry import analyze_ssl_expiry
 
 from app.core.aggregator import aggregate_results
-
 from app.core.deduplicator import deduplicate_findings
-
 from app.core.risk_scoring import calculate_asset_risk
-
 from app.core.report_generator import generate_professional_report
 
-from app.storage.history import scan_history
+from app.storage.history import update_scan
+
 import os
+
 
 def run_full_scan(scan_id, target):
 
-    # =========================
-    # NMAP SCAN
-    # =========================
+    try:
 
-    nmap_data = run_nmap_scan(target)
+        # =========================
+        # NMAP SCAN
+        # =========================
 
-    # =========================
-    # SSL ANALYSIS
-    # =========================
+        nmap_data = run_nmap_scan(target)
 
-    ssl_data = analyze_ssl(target)
+        # =========================
+        # SSL ANALYSIS
+        # =========================
 
-    ssl_expiry = analyze_ssl_expiry(target)
+        ssl_data = analyze_ssl(target)
 
-    ssl_data.update(ssl_expiry)
+        ssl_expiry = analyze_ssl_expiry(target)
 
-    # =========================
-    # FINDINGS COLLECTION
-    # =========================
+        ssl_data.update(ssl_expiry)
 
-    findings = []
+        # =========================
+        # FINDINGS COLLECTION
+        # =========================
 
-    # Header Analysis
-    findings.extend(
-        analyze_headers(target)
-    )
+        findings = []
 
-    # HTTP Methods
-    findings.extend(
-        analyze_http_methods(target)
-    )
+        # Header Analysis
+        findings.extend(
+            analyze_headers(target)
+        )
 
-    # Cookie Security
-    findings.extend(
-        analyze_cookies(target)
-    )
+        # HTTP Methods
+        findings.extend(
+            analyze_http_methods(target)
+        )
 
-    # OWASP ZAP
-    findings.extend(
-        run_zap_scan(target)
-    )
+        # Cookie Security
+        findings.extend(
+            analyze_cookies(target)
+        )
 
-    # =========================
-    # REMOVE DUPLICATES
-    # =========================
+        # OWASP ZAP
+        findings.extend(
+            run_zap_scan(target)
+        )
 
-    findings = deduplicate_findings(findings)
+        # =========================
+        # REMOVE DUPLICATES
+        # =========================
 
-    # =========================
-    # AGGREGATE RESULTS
-    # =========================
+        findings = deduplicate_findings(findings)
 
-    results = aggregate_results(
-        target,
-        nmap_data,
-        ssl_data,
-        findings
-    )
+        # =========================
+        # AGGREGATE RESULTS
+        # =========================
 
-    # =========================
-    # ASSET RISK SCORE
-    # =========================
+        results = aggregate_results(
+            target,
+            nmap_data,
+            ssl_data,
+            findings
+        )
 
-    results["asset_risk"] = calculate_asset_risk(
-        results["summary"]
-    )
+        # =========================
+        # ASSET RISK SCORE
+        # =========================
 
-    # =========================
-    # REPORT GENERATION
-    # =========================
-    reports_dir = os.getenv("REPORTS_DIR", "reports")
-    report_path = os.path.join(reports_dir, f"{scan_id}.pdf")
+        results["asset_risk"] = calculate_asset_risk(
+            results["summary"]
+        )
 
-    generate_professional_report(
-        report_path,
-        results
-    )
+        # =========================
+        # REPORT GENERATION
+        # =========================
 
-    report = report_path
-    # =========================
-    # STORE HISTORY
-    # =========================
+        reports_dir = os.getenv(
+            "REPORTS_DIR",
+            "reports"
+        )
 
-    scan_history[scan_id]['status'] = 'completed'
+        os.makedirs(
+            reports_dir,
+            exist_ok=True
+        )
 
-    scan_history[scan_id]['results'] = results
+        report_path = os.path.join(
+            reports_dir,
+            f"{scan_id}.pdf"
+        )
 
-    scan_history[scan_id]['report'] = report
+        generate_professional_report(
+            report_path,
+            results
+        )
+
+        # =========================
+        # UPDATE DATABASE
+        # =========================
+
+        update_scan(
+            scan_id=scan_id,
+            status="completed",
+            results=results,
+            report=report_path
+        )
+
+        print(f"[INFO] Scan completed: {scan_id}")
+
+    except Exception as e:
+
+        update_scan(
+            scan_id=scan_id,
+            status="failed",
+            error=str(e)
+        )
+
+        print(f"[ERROR] Scan failed: {e}")

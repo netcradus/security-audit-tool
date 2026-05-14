@@ -117,7 +117,7 @@ Scan History Storage
 
 ```bash
 git clone <repository-url>
-cd websec_phase1
+cd Backend
 ```
 
 ---
@@ -197,7 +197,7 @@ netstat -ano | findstr 8080
 ## Start FastAPI Server
 
 ```bash
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload
 ```
 
 ---
