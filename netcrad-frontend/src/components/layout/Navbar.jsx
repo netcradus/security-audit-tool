@@ -1,7 +1,8 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { Sun, Moon, Shield, History, LayoutDashboard } from 'lucide-react'
+import { Sun, Moon, History, LayoutDashboard } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useScan } from '../../context/ScanContext'
+import logo from '../../assets/images/logo.png'
 import clsx from 'clsx'
 
 const tabs = [
@@ -40,25 +41,35 @@ export default function Navbar() {
       isDark ? 'bg-dark-bg/80 border-dark-border' : 'bg-light-bg/80 border-light-border'
     )}>
       {/* Top bar */}
-      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+      <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo */}
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-2.5 group"
+          className="flex items-center gap-3 group"
         >
-          <div className="w-7 h-7 rounded-lg bg-brand-gradient flex items-center justify-center shadow-md shadow-brand-500/30">
-            <Shield size={14} className="text-white" />
-          </div>
-          <span className={clsx(
-            'font-display font-bold text-base tracking-wide',
-            isDark ? 'text-white' : 'text-slate-900'
-          )}>
-            NET<span className="text-brand-500">CRAD</span>
+          <img
+            src={logo}
+            alt="Netcrad"
+            className="h-12 w-auto object-contain"
+          />
+          <span className="flex flex-col items-start leading-none">
+            <span className={clsx(
+              'font-display font-bold text-base tracking-wide',
+              isDark ? 'text-white' : 'text-slate-900'
+            )}>
+              NET<span className="text-brand-500">CRAD</span>
+            </span>
+            <span className={clsx(
+              'mt-1 text-[10px] font-medium uppercase tracking-wide',
+              isDark ? 'text-slate-400' : 'text-slate-500'
+            )}>
+              Powered by Netcradus
+            </span>
           </span>
-          <span className={clsx(
+          {/* <span className={clsx(
             'text-xs px-1.5 py-0.5 rounded font-mono',
             isDark ? 'bg-dark-card text-slate-400 border border-dark-border' : 'bg-light-card text-slate-500 border border-light-border'
-          )}>v1.0</span>
+          )}>v1.0</span> */}
         </button>
 
         {/* Right nav */}
