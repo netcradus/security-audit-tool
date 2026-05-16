@@ -55,7 +55,7 @@ def run_zap_scan(target):
             baseurl=target_url
         )
 
-        for alert in alerts[:10]:
+        for alert in alerts:
 
             findings.append({
 

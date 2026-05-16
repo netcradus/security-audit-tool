@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 from app.scanners.nmap_scanner import run_nmap_scan
 from app.scanners.header_analyzer import analyze_headers
 from app.scanners.ssl_analyzer import analyze_ssl
@@ -21,57 +23,175 @@ def run_full_scan(scan_id, target):
 
     try:
 
-        # =========================
-        # NMAP SCAN
-        # =========================
-
-        nmap_data = run_nmap_scan(target)
-
-        # =========================
-        # SSL ANALYSIS
-        # =========================
-
-        ssl_data = analyze_ssl(target)
-
-        ssl_expiry = analyze_ssl_expiry(target)
-
-        ssl_data.update(ssl_expiry)
-
-        # =========================
-        # FINDINGS COLLECTION
-        # =========================
-
         findings = []
 
-        # Header Analysis
-        findings.extend(
-            analyze_headers(target)
-        )
+        # =====================================
+        # PARALLEL SCANNER EXECUTION
+        # =====================================
 
-        # HTTP Methods
-        findings.extend(
-            analyze_http_methods(target)
-        )
+        with ThreadPoolExecutor(max_workers=7) as executor:
 
-        # Cookie Security
-        findings.extend(
-            analyze_cookies(target)
-        )
+            future_nmap = executor.submit(
+                run_nmap_scan,
+                target
+            )
 
-        # OWASP ZAP
-        findings.extend(
-            run_zap_scan(target)
-        )
+            future_ssl = executor.submit(
+                analyze_ssl,
+                target
+            )
 
-        # =========================
+            future_ssl_expiry = executor.submit(
+                analyze_ssl_expiry,
+                target
+            )
+
+            future_headers = executor.submit(
+                analyze_headers,
+                target
+            )
+
+            future_http = executor.submit(
+                analyze_http_methods,
+                target
+            )
+
+            future_cookies = executor.submit(
+                analyze_cookies,
+                target
+            )
+
+            future_zap = executor.submit(
+                run_zap_scan,
+                target
+            )
+
+            # =====================================
+            # NMAP RESULTS
+            # =====================================
+
+            try:
+
+                nmap_data = future_nmap.result()
+
+            except Exception as e:
+
+                nmap_data = []
+
+                findings.append({
+                    "title": "Nmap Scan Failed",
+                    "severity": "info",
+                    "error": str(e)
+                })
+
+            # =====================================
+            # SSL RESULTS
+            # =====================================
+
+            try:
+
+                ssl_data = future_ssl.result()
+
+                ssl_expiry = future_ssl_expiry.result()
+
+                ssl_data.update(ssl_expiry)
+
+            except Exception as e:
+
+                ssl_data = {
+                    "tls_version": "Unknown",
+                    "certificate_expiry": "Unknown"
+                }
+
+                findings.append({
+                    "title": "SSL Analysis Failed",
+                    "severity": "info",
+                    "error": str(e)
+                })
+
+            # =====================================
+            # HEADER ANALYSIS
+            # =====================================
+
+            try:
+
+                findings.extend(
+                    future_headers.result()
+                )
+
+            except Exception as e:
+
+                findings.append({
+                    "title": "Header Analysis Failed",
+                    "severity": "info",
+                    "error": str(e)
+                })
+
+            # =====================================
+            # HTTP METHODS
+            # =====================================
+
+            try:
+
+                findings.extend(
+                    future_http.result()
+                )
+
+            except Exception as e:
+
+                findings.append({
+                    "title": "HTTP Methods Analysis Failed",
+                    "severity": "info",
+                    "error": str(e)
+                })
+
+            # =====================================
+            # COOKIE ANALYSIS
+            # =====================================
+
+            try:
+
+                findings.extend(
+                    future_cookies.result()
+                )
+
+            except Exception as e:
+
+                findings.append({
+                    "title": "Cookie Analysis Failed",
+                    "severity": "info",
+                    "error": str(e)
+                })
+
+            # =====================================
+            # OWASP ZAP
+            # =====================================
+
+            try:
+
+                findings.extend(
+                    future_zap.result()
+                )
+
+            except Exception as e:
+
+                findings.append({
+                    "title": "ZAP Scan Failed",
+                    "severity": "info",
+                    "error": str(e)
+                })
+
+        # =====================================
         # REMOVE DUPLICATES
-        # =========================
+        # =====================================
 
-        findings = deduplicate_findings(findings)
+        findings = deduplicate_findings(
+            findings
+        )
 
-        # =========================
+        # =====================================
         # AGGREGATE RESULTS
-        # =========================
+        # =====================================
 
         results = aggregate_results(
             target,
@@ -80,17 +200,17 @@ def run_full_scan(scan_id, target):
             findings
         )
 
-        # =========================
+        # =====================================
         # ASSET RISK SCORE
-        # =========================
+        # =====================================
 
         results["asset_risk"] = calculate_asset_risk(
             results["summary"]
         )
 
-        # =========================
+        # =====================================
         # REPORT GENERATION
-        # =========================
+        # =====================================
 
         reports_dir = os.getenv(
             "REPORTS_DIR",
@@ -107,14 +227,28 @@ def run_full_scan(scan_id, target):
             f"{scan_id}.pdf"
         )
 
-        generate_professional_report(
-            report_path,
-            results
-        )
+        try:
 
-        # =========================
+            generate_professional_report(
+                report_path,
+                results
+            )
+
+        except Exception as e:
+
+            report_path = None
+
+            findings.append({
+                "title": "Report Generation Failed",
+                "severity": "info",
+                "error": str(e)
+            })
+
+            results["findings"] = findings
+
+        # =====================================
         # UPDATE DATABASE
-        # =========================
+        # =====================================
 
         update_scan(
             scan_id=scan_id,

@@ -28,9 +28,6 @@ import os
 
 load_dotenv()
 
-ZAP_API_KEY = os.getenv(
-    "ZAP_API_KEY"
-)
 
 # =====================================
 # INIT DATABASE

@@ -2,6 +2,7 @@ import ssl
 import socket
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from datetime import datetime, timezone
 
 
 def analyze_ssl_expiry(hostname):
@@ -32,10 +33,15 @@ def analyze_ssl_expiry(hostname):
                     default_backend()
                 )
 
-                expiry = cert.not_valid_after
+                expiry = cert.not_valid_after_utc
+
+                days_remaining = (
+                    expiry - datetime.now(timezone.utc)
+                ).days
 
                 return {
-                    "certificate_expiry": str(expiry)
+                    "certificate_expiry": str(expiry),
+                    "days_remaining": days_remaining
                 }
 
     except Exception as e:

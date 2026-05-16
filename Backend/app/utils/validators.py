@@ -1,6 +1,19 @@
 import ipaddress
 import socket
 import re
+from urllib.parse import urlparse
+
+def normalize_target(target):
+
+    if not target.startswith(
+        ("http://", "https://")
+    ):
+
+        target = f"https://{target}"
+
+    parsed = urlparse(target)
+
+    return parsed.netloc
 
 
 def is_valid_target(target):
