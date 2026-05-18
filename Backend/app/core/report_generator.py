@@ -14,7 +14,88 @@ from reportlab.lib.pagesizes import letter
 from datetime import datetime
 
 
-def generate_professional_report(path, results):
+# ======================================
+# DYNAMIC EXECUTIVE SUMMARY
+# ======================================
+
+def generate_executive_summary(results):
+
+    summary = results.get(
+        "summary",
+        {}
+    )
+
+    critical = summary.get("critical", 0)
+    high = summary.get("high", 0)
+    medium = summary.get("medium", 0)
+    low = summary.get("low", 0)
+
+    asset_risk = results.get(
+        "asset_risk",
+        "Unknown"
+    )
+
+    if critical > 0:
+
+        posture = (
+            "The assessment identified "
+            "critical security risks "
+            "requiring immediate remediation."
+        )
+
+    elif high > 0:
+
+        posture = (
+            "The assessment identified "
+            "high-risk vulnerabilities "
+            "that could significantly "
+            "impact the security posture."
+        )
+
+    elif medium > 0:
+
+        posture = (
+            "The assessment identified "
+            "moderate security weaknesses "
+            "requiring remediation attention."
+        )
+
+    else:
+
+        posture = (
+            "No major security weaknesses "
+            "were identified during "
+            "the assessment."
+        )
+
+    return f"""
+The security assessment was conducted against the target environment to identify externally observable vulnerabilities, exposed services, and security misconfigurations.
+
+The assessment identified:
+
+- {critical} Critical findings
+- {high} High findings
+- {medium} Medium findings
+- {low} Low findings
+
+Overall asset risk was assessed as {asset_risk}.
+
+{posture}
+
+It is recommended that identified findings be reviewed and remediated based on severity and business impact to improve the overall security posture of the environment.
+"""
+
+
+# ======================================
+# PDF REPORT GENERATION
+# ======================================
+
+def generate_professional_report(
+    path,
+    results,
+    company_name=None,
+    auditor_name=None
+):
 
     doc = SimpleDocTemplate(
         path,
@@ -37,6 +118,24 @@ def generate_professional_report(path, results):
     )
 
     elements.append(Spacer(1, 30))
+
+    elements.append(
+        Paragraph(
+            f"<b>Company:</b> {company_name or 'N/A'}",
+            styles['Heading2']
+        )
+    )
+
+    elements.append(Spacer(1, 10))
+
+    elements.append(
+        Paragraph(
+            f"<b>Auditor:</b> {auditor_name or 'N/A'}",
+            styles['Heading2']
+        )
+    )
+
+    elements.append(Spacer(1, 10))
 
     elements.append(
         Paragraph(
@@ -78,17 +177,13 @@ def generate_professional_report(path, results):
 
     elements.append(Spacer(1, 10))
 
-    summary_text = """
-    The assessment identified security
-    misconfigurations affecting browser-side
-    security protections. Immediate remediation
-    is recommended to improve the overall
-    security posture of the target application.
-    """
+    executive_summary = generate_executive_summary(
+        results
+    )
 
     elements.append(
         Paragraph(
-            summary_text,
+            executive_summary,
             styles['BodyText']
         )
     )
@@ -116,10 +211,10 @@ def generate_professional_report(path, results):
     )
 
     risk_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.darkblue),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('GRID', (0,0), (-1,-1), 1, colors.black),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold')
+        ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
     ]))
 
     elements.append(risk_table)
@@ -163,13 +258,59 @@ def generate_professional_report(path, results):
     )
 
     asset_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.darkgreen),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('GRID', (0,0), (-1,-1), 1, colors.black),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold')
+        ('BACKGROUND', (0, 0), (-1, 0), colors.darkgreen),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
     ]))
 
     elements.append(asset_table)
+
+    elements.append(Spacer(1, 20))
+
+    # ======================================
+    # DNS / WHOIS
+    # ======================================
+
+    dns_whois = results.get(
+        "dns_whois",
+        {}
+    )
+
+    whois_info = dns_whois.get(
+        "whois",
+        {}
+    )
+
+    elements.append(
+        Paragraph(
+            "DNS and WHOIS Information",
+            styles['Heading1']
+        )
+    )
+
+    elements.append(Spacer(1, 10))
+
+    dns_data = [
+        ["Property", "Value"],
+        ["Registrar", str(whois_info.get("registrar", "Unknown"))],
+        ["Creation Date", str(whois_info.get("creation_date", "Unknown"))],
+        ["Expiration Date", str(whois_info.get("expiration_date", "Unknown"))]
+    ]
+
+    dns_table = Table(
+        dns_data,
+        colWidths=[200, 250]
+    )
+
+    dns_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.darkorange),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
+    ]))
+
+    elements.append(dns_table)
 
     elements.append(PageBreak())
 
@@ -202,10 +343,11 @@ def generate_professional_report(path, results):
         meta_data = [
             ["Field", "Value"],
             ["Severity", finding.get("severity", "N/A")],
-            ["CVSS", str(finding.get("cvss", "N/A"))],
+            ["Risk Score", str(finding.get("risk_score", "N/A"))],
             ["Category", finding.get("category", "General")],
             ["OWASP", finding.get("owasp", "N/A")],
-            ["CWE", finding.get("cwe", "N/A")]
+            ["CWE", finding.get("cwe", "N/A")],
+            ["Affected URL", finding.get("affected_url", "N/A")]
         ]
 
         meta_table = Table(
@@ -214,9 +356,9 @@ def generate_professional_report(path, results):
         )
 
         meta_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-            ('GRID', (0,0), (-1,-1), 1, colors.black),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold')
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
         ]))
 
         elements.append(meta_table)
@@ -236,15 +378,6 @@ def generate_professional_report(path, results):
         elements.append(
             Paragraph(
                 f"<b>Description:</b> {description}",
-                styles['BodyText']
-            )
-        )
-
-        elements.append(Spacer(1, 8))
-
-        elements.append(
-            Paragraph(
-                "<b>Impact:</b> This issue may increase exposure to client-side attacks and security misconfigurations.",
                 styles['BodyText']
             )
         )
@@ -292,10 +425,10 @@ def generate_professional_report(path, results):
     )
 
     port_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.darkred),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('GRID', (0,0), (-1,-1), 1, colors.black),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold')
+        ('BACKGROUND', (0, 0), (-1, 0), colors.darkred),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
     ]))
 
     elements.append(port_table)
@@ -316,11 +449,8 @@ def generate_professional_report(path, results):
     elements.append(Spacer(1, 10))
 
     conclusion = """
-    The assessment identified multiple
-    browser-security misconfigurations.
-    Implementing recommended remediation
-    measures will improve overall security posture.
-    """
+The assessment identified security findings and exposed services requiring remediation attention. Implementing the recommended remediation measures will improve the overall security posture and reduce attack surface exposure.
+"""
 
     elements.append(
         Paragraph(

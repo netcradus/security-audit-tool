@@ -20,7 +20,12 @@ from app.storage.history import update_scan
 import os
 
 
-def run_full_scan(scan_id, target):
+def run_full_scan(
+    scan_id,
+    target,
+    company_name=None,
+    auditor_name=None
+):
 
     try:
 
@@ -301,7 +306,9 @@ def run_full_scan(scan_id, target):
 
             generate_professional_report(
                 report_path,
-                results
+                results,
+                company_name,
+                auditor_name
             )
 
         except Exception as e:

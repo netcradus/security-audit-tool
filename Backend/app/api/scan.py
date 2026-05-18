@@ -29,7 +29,12 @@ router = APIRouter()
 
 
 class ScanRequest(BaseModel):
+
     target: str
+
+    company_name: str | None = None
+
+    auditor_name: str | None = None
 
 
 # =====================================
@@ -62,7 +67,13 @@ def start_scan(request: Request, payload: ScanRequest):
     # RUN SCAN
     # =================================
 
-    executor.submit(run_full_scan, scan_id, normalized_target)
+    executor.submit(
+        run_full_scan,
+        scan_id,
+        normalized_target,
+        request.company_name,
+        request.auditor_name
+    )
 
     return {"scan_id": scan_id, "status": "started"}
 
