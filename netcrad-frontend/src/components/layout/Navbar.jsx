@@ -41,7 +41,7 @@ export default function Navbar() {
       isDark ? 'bg-dark-bg/80 border-dark-border' : 'bg-light-bg/80 border-light-border'
     )}>
       {/* Top bar */}
-      <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div className="max-w-5xl mx-auto px-4 py-3 min-h-16 flex flex-wrap items-center justify-between gap-3">
         {/* Logo */}
         <button
           onClick={() => navigate('/')}
@@ -50,17 +50,17 @@ export default function Navbar() {
           <img
             src={logo}
             alt="Netcrad"
-            className="h-12 w-auto object-contain"
+            className="h-10 sm:h-12 w-auto object-contain"
           />
           <span className="flex flex-col items-start leading-none">
             <span className={clsx(
-              'font-display font-bold text-base tracking-wide',
+              'font-display font-bold text-sm sm:text-base tracking-wide',
               isDark ? 'text-white' : 'text-slate-900'
             )}>
               NET<span className="text-brand-500">CRAD</span>
             </span>
             <span className={clsx(
-              'mt-1 text-[10px] font-medium uppercase tracking-wide',
+              'mt-1 text-[9px] sm:text-[10px] font-medium uppercase tracking-wide',
               isDark ? 'text-slate-400' : 'text-slate-500'
             )}>
               Powered by Netcradus
@@ -73,9 +73,9 @@ export default function Navbar() {
         </button>
 
         {/* Right nav */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0">
           <NavLink to="/" className={({ isActive }) => clsx(
-            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+            'flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors',
             isActive
               ? 'text-brand-500 bg-brand-500/10'
               : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
@@ -84,7 +84,7 @@ export default function Navbar() {
             Dashboard
           </NavLink>
           <NavLink to="/history" className={({ isActive }) => clsx(
-            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+            'flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors',
             isActive
               ? 'text-brand-500 bg-brand-500/10'
               : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
@@ -108,7 +108,7 @@ export default function Navbar() {
 
       {/* Tab bar */}
       <div className={clsx(
-        'max-w-5xl mx-auto px-4 flex gap-0 border-t',
+        'max-w-5xl mx-auto px-4 flex gap-0 border-t overflow-x-auto',
         isDark ? 'border-dark-border/50' : 'border-light-border'
       )}>
         {tabs.map(tab => {
@@ -119,7 +119,7 @@ export default function Navbar() {
               key={tab.label}
               onClick={() => navigate(path)}
               className={clsx(
-                'px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 whitespace-nowrap',
+                'px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all duration-200 whitespace-nowrap',
                 active
                   ? 'border-brand-500 text-brand-500'
                   : clsx(

@@ -1,31 +1,46 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, ChevronRight, BarChart2 } from 'lucide-react'
-import { useScan } from '../context/ScanContext'
+import { Download, ChevronRight, BarChart2, Loader } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
-import { mockHistory } from '../data/mockData'
+import { scanApi } from '../api'
+import { mapHistoryResponse } from '../utils/scanTransform'
 import GradeBadge from '../components/shared/GradeBadge'
 import clsx from 'clsx'
 
 export default function HistoryPage() {
   const { isDark } = useTheme()
-  const { scanResults } = useScan()
   const navigate = useNavigate()
+  const [history, setHistory] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  // Merge live scans + mock history
-  const liveScanEntries = Object.values(scanResults).map(r => ({
-    id: r.id,
-    url: r.url,
-    grade: r.grade,
-    findings: r.findings?.length || 0,
-    cvssAvg: r.cvssAvg,
-    date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-    critical: r.critical, high: r.high, medium: r.medium, low: r.low,
-  }))
+  useEffect(() => {
+    let cancelled = false
 
-  const allHistory = [...liveScanEntries, ...mockHistory]
+    const loadHistory = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const response = await scanApi.getHistory()
+        if (!cancelled) setHistory(mapHistoryResponse(response))
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Unable to load scan history')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    loadHistory()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const allHistory = history
 
   const handleDownload = (id, url) => {
-    alert(`Downloading report for ${url}...\n(Connect to GET /api/report/${id}/pdf)`)
+    alert(`Open the results page for ${url} to download the generated HTML report.`)
   }
 
   return (
@@ -37,7 +52,7 @@ export default function HistoryPage() {
             Scan history
           </h2>
           <p className={clsx('text-xs mt-0.5', isDark ? 'text-slate-500' : 'text-slate-400')}>
-            {allHistory.length} scans recorded
+            {loading ? 'Loading scans...' : `${allHistory.length} scans recorded`}
           </p>
         </div>
         <div className={clsx('flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border', isDark ? 'border-dark-border text-slate-400 bg-dark-card' : 'border-light-border text-slate-500 bg-light-card')}>
@@ -50,7 +65,7 @@ export default function HistoryPage() {
       <div className={clsx('rounded-2xl border overflow-hidden', isDark ? 'bg-dark-card border-dark-border' : 'bg-light-surface border-light-border')}>
         {/* Table header */}
         <div className={clsx(
-          'grid grid-cols-12 px-5 py-3 text-xs font-semibold uppercase tracking-wide border-b',
+          'hidden sm:grid grid-cols-12 px-5 py-3 text-xs font-semibold uppercase tracking-wide border-b',
           isDark ? 'border-dark-border text-slate-500 bg-dark-surface/50' : 'border-light-border text-slate-400 bg-light-card/50'
         )}>
           <div className="col-span-4">Target</div>
@@ -61,18 +76,31 @@ export default function HistoryPage() {
         </div>
 
         {/* Table rows */}
-        {allHistory.map((scan, i) => (
+        {loading && (
+          <div className="py-16 text-center">
+            <Loader size={22} className="mx-auto mb-3 text-brand-500 animate-spin" />
+            <p className={clsx('text-sm', isDark ? 'text-slate-500' : 'text-slate-400')}>Loading scan history...</p>
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="py-16 text-center">
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
+
+        {!loading && !error && allHistory.map((scan, i) => (
           <div
             key={scan.id}
             className={clsx(
-              'grid grid-cols-12 items-center px-5 py-4 cursor-pointer transition-colors group',
+              'grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-0 items-center px-5 py-4 cursor-pointer transition-colors group',
               i < allHistory.length - 1 && (isDark ? 'border-b border-dark-border' : 'border-b border-light-border'),
               isDark ? 'hover:bg-dark-surface/60' : 'hover:bg-light-card/60'
             )}
           >
             {/* Target */}
             <div
-              className="col-span-4 flex items-center gap-2 min-w-0"
+              className="col-span-1 sm:col-span-4 flex items-center gap-2 min-w-0"
               onClick={() => navigate(`/results/${scan.id}`)}
             >
               <div className={clsx(
@@ -88,12 +116,12 @@ export default function HistoryPage() {
             </div>
 
             {/* Grade */}
-            <div className="col-span-2 flex justify-center" onClick={() => navigate(`/results/${scan.id}`)}>
+            <div className="col-span-1 sm:col-span-2 flex sm:justify-center" onClick={() => navigate(`/results/${scan.id}`)}>
               <GradeBadge grade={scan.grade} size="sm" />
             </div>
 
             {/* Findings count with mini breakdown */}
-            <div className="col-span-2 flex flex-col items-center" onClick={() => navigate(`/results/${scan.id}`)}>
+            <div className="col-span-1 sm:col-span-2 flex flex-row sm:flex-col items-center gap-2 sm:gap-0" onClick={() => navigate(`/results/${scan.id}`)}>
               <span className={clsx('text-sm font-bold font-display', isDark ? 'text-slate-200' : 'text-slate-800')}>
                 {scan.findings}
               </span>
@@ -103,14 +131,14 @@ export default function HistoryPage() {
             </div>
 
             {/* Date */}
-            <div className="col-span-3" onClick={() => navigate(`/results/${scan.id}`)}>
+            <div className="col-span-1 sm:col-span-3" onClick={() => navigate(`/results/${scan.id}`)}>
               <span className={clsx('text-sm', isDark ? 'text-slate-400' : 'text-slate-500')}>
                 {scan.date}
               </span>
             </div>
 
             {/* Actions */}
-            <div className="col-span-1 flex items-center justify-end gap-1">
+            <div className="col-span-1 sm:col-span-1 flex items-center sm:justify-end gap-1">
               <button
                 onClick={() => handleDownload(scan.id, scan.url)}
                 className={clsx(
@@ -133,7 +161,7 @@ export default function HistoryPage() {
           </div>
         ))}
 
-        {allHistory.length === 0 && (
+        {!loading && !error && allHistory.length === 0 && (
           <div className="py-16 text-center">
             <p className={clsx('text-sm', isDark ? 'text-slate-500' : 'text-slate-400')}>No scans yet. <button onClick={() => navigate('/')} className="text-brand-500 hover:underline">Run your first scan</button></p>
           </div>

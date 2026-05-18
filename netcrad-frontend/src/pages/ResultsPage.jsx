@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Download, ChevronRight, Filter, Server, Globe, Lock, Shield, BarChart2, X } from 'lucide-react'
+import { Download, ChevronRight, Filter, Server, Globe, Lock, Shield, X, Loader } from 'lucide-react'
 import { useScan } from '../context/ScanContext'
 import { useTheme } from '../context/ThemeContext'
-import { getResultById, mockScanResult } from '../data/mockData'
+import { scanApi } from '../api'
+import { mapBackendScanToResult } from '../utils/scanTransform'
 import GradeBadge from '../components/shared/GradeBadge'
 import SeverityBadge from '../components/shared/SeverityBadge'
 import FindingDrawer from '../components/results/FindingDrawer'
@@ -23,10 +24,13 @@ const scannerTabs = [
 
 export default function ResultsPage() {
   const { id } = useParams()
-  const { scanResults } = useScan()
+  const { scanResults, saveResults } = useScan()
   const { isDark } = useTheme()
   const navigate = useNavigate()
 
+  const [result, setResult] = useState(scanResults[id] || null)
+  const [loading, setLoading] = useState(!scanResults[id])
+  const [loadError, setLoadError] = useState('')
   const [severityFilter, setSeverityFilter] = useState('All')
   const [activeScanner, setActiveScanner] = useState('merged')
   const [activeFinding, setActiveFinding] = useState(null)
@@ -38,8 +42,66 @@ export default function ResultsPage() {
   })
   const [reportError, setReportError] = useState('')
 
-  // Resolve result: from context (live) or mock fallback
-  const result = scanResults[id] || getResultById(id) || mockScanResult
+  useEffect(() => {
+    let cancelled = false
+
+    const loadResult = async () => {
+      setLoading(true)
+      setLoadError('')
+      try {
+        const scan = await scanApi.getStatus(id)
+        if (cancelled) return
+        const mapped = mapBackendScanToResult(scan, id)
+        setResult(mapped)
+        if (mapped.status === 'completed') saveResults(id, mapped)
+      } catch (err) {
+        if (!cancelled) setLoadError(err.message || 'Unable to load scan results')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    if (scanResults[id]) {
+      setResult(scanResults[id])
+      setLoading(false)
+      return
+    }
+
+    loadResult()
+
+    return () => {
+      cancelled = true
+    }
+  }, [id, scanResults, saveResults])
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <Loader size={22} className="mx-auto mb-3 text-brand-500 animate-spin" />
+        <p className={clsx('text-sm', isDark ? 'text-slate-400' : 'text-slate-500')}>Loading scan results...</p>
+      </div>
+    )
+  }
+
+  if (loadError || !result) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <p className="text-sm text-red-400 mb-3">{loadError || 'Scan result not found'}</p>
+        <button onClick={() => navigate('/history')} className="text-brand-500 hover:underline">Back to history</button>
+      </div>
+    )
+  }
+
+  if (result.status !== 'completed') {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <p className={clsx('text-sm mb-3', isDark ? 'text-slate-400' : 'text-slate-500')}>
+          Scan is currently {result.status || 'running'}.
+        </p>
+        <button onClick={() => navigate(`/scan/${id}`)} className="text-brand-500 hover:underline">View scan progress</button>
+      </div>
+    )
+  }
 
   const pieData = [
     { name: 'Critical', value: result.critical, color: '#ff3b5c' },
@@ -93,7 +155,7 @@ export default function ResultsPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 animate-slide-up">
       {/* Top bar */}
-      <div className="flex items-start justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
           <h2 className={clsx('font-display font-bold text-xl', isDark ? 'text-white' : 'text-slate-900')}>
             {result.url}
@@ -102,15 +164,15 @@ export default function ResultsPage() {
             Scanned {result.scannedAt} · {result.findings?.length} findings
           </p>
         </div>
-        <button onClick={() => setReportModalOpen(true)} className="btn-secondary flex items-center gap-2 text-sm">
+        <button onClick={() => setReportModalOpen(true)} className="btn-secondary flex items-center justify-center gap-2 text-sm w-full sm:w-auto">
           <Download size={14} />
           Download Report
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left — grade card */}
-        <div className="col-span-1">
+        <div className="lg:col-span-1">
           <div className={clsx('rounded-2xl border p-5', isDark ? 'bg-dark-card border-dark-border' : 'bg-light-surface border-light-border')}>
             <div className={clsx('text-xs text-center mb-4', isDark ? 'text-slate-500' : 'text-slate-400')}>Site grade</div>
             <div className="flex justify-center mb-3">
@@ -156,7 +218,7 @@ export default function ResultsPage() {
         </div>
 
         {/* Right — findings */}
-        <div className="col-span-2">
+        <div className="lg:col-span-2 min-w-0">
           <div className={clsx('rounded-2xl border overflow-hidden', isDark ? 'bg-dark-card border-dark-border' : 'bg-light-surface border-light-border')}>
             {/* Scanner tab bar */}
             <div className={clsx('flex border-b overflow-x-auto', isDark ? 'border-dark-border' : 'border-light-border')}>
@@ -212,15 +274,15 @@ export default function ResultsPage() {
                     key={f.id}
                     onClick={() => setActiveFinding(f)}
                     className={clsx(
-                      'w-full flex items-center gap-3 px-4 py-3 transition-colors text-left group',
+                      'w-full flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 px-4 py-3 transition-colors text-left group',
                       isDark ? 'hover:bg-dark-surface/60' : 'hover:bg-light-card/60'
                     )}
                   >
                     <SeverityBadge severity={f.severity} />
-                    <span className={clsx('flex-1 text-sm font-medium truncate', isDark ? 'text-slate-200' : 'text-slate-800')}>
+                    <span className={clsx('flex-1 min-w-[9rem] text-sm font-medium truncate', isDark ? 'text-slate-200' : 'text-slate-800')}>
                       {f.title}
                     </span>
-                    <span className={clsx('text-xs font-mono', isDark ? 'text-slate-500' : 'text-slate-400')}>{f.owasp}</span>
+                    <span className={clsx('text-xs font-mono max-w-[11rem] truncate', isDark ? 'text-slate-500' : 'text-slate-400')}>{f.owasp}</span>
                     <span className={clsx(
                       'text-xs font-mono tabular-nums w-8 text-right',
                       f.cvss >= 9 ? 'text-red-400' : f.cvss >= 7 ? 'text-orange-400' : f.cvss >= 4 ? 'text-yellow-400' : 'text-green-400'
@@ -364,6 +426,12 @@ function buildReportHtml(result, meta) {
     .low { background: #16a34a; }
     .note { padding: 12px; border-left: 4px solid #f05a28; background: #fff7ed; margin-top: 12px; }
     .footer { margin-top: 34px; font-size: 12px; color: #687386; }
+    @media (max-width: 640px) {
+      main { padding: 24px 16px; }
+      .meta { grid-template-columns: 1fr; }
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
     @media print { body { background: #fff; } main { padding: 0; } .cover { border-radius: 0; } }
   </style>
 </head>
@@ -443,7 +511,7 @@ function buildReportHtml(result, meta) {
     <li>Re-scan the target after remediation and compare the new report with this baseline.</li>
   </ol>
 
-  <p class="footer">Generated by Netcrad security audit frontend. Company: ${escapeHtml(meta.companyName)}. Audit by: ${escapeHtml(meta.auditBy)}.</p>
+  <p class="footer">Generated by Netcrad. Company: ${escapeHtml(meta.companyName)}. Audit by: ${escapeHtml(meta.auditBy)}.</p>
 </main>
 </body>
 </html>`

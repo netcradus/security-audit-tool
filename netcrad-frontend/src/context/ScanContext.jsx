@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 
 const ScanContext = createContext()
 
@@ -6,7 +6,7 @@ export function ScanProvider({ children }) {
   const [activeScan, setActiveScan] = useState(null)   // { id, url, stages, results }
   const [scanResults, setScanResults] = useState({})   // id -> results object
 
-  const startScan = (id, url) => {
+  const startScan = useCallback((id, url) => {
     const scan = {
       id,
       url,
@@ -21,9 +21,9 @@ export function ScanProvider({ children }) {
     }
     setActiveScan(scan)
     return scan
-  }
+  }, [])
 
-  const updateStage = (stageKey, updates) => {
+  const updateStage = useCallback((stageKey, updates) => {
     setActiveScan(prev => {
       if (!prev) return prev
       return {
@@ -31,18 +31,28 @@ export function ScanProvider({ children }) {
         stages: prev.stages.map(s => s.key === stageKey ? { ...s, ...updates } : s),
       }
     })
-  }
+  }, [])
 
-  const completeStage = (stageKey, result) => {
+  const completeStage = useCallback((stageKey, result) => {
     updateStage(stageKey, { status: 'done', progress: 100, result })
-  }
+  }, [updateStage])
 
-  const saveResults = (id, data) => {
+  const saveResults = useCallback((id, data) => {
     setScanResults(prev => ({ ...prev, [id]: data }))
-  }
+  }, [])
+
+  const value = useMemo(() => ({
+    activeScan,
+    setActiveScan,
+    startScan,
+    updateStage,
+    completeStage,
+    scanResults,
+    saveResults,
+  }), [activeScan, completeStage, saveResults, scanResults, startScan, updateStage])
 
   return (
-    <ScanContext.Provider value={{ activeScan, setActiveScan, startScan, updateStage, completeStage, scanResults, saveResults }}>
+    <ScanContext.Provider value={value}>
       {children}
     </ScanContext.Provider>
   )
