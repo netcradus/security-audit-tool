@@ -7,8 +7,8 @@ import clsx from 'clsx'
 
 const tabs = [
   { label: 'New scan',         path: '/' },
-  { label: 'Scan in progress', path: '/scan/active' },
-  { label: 'Results',          path: '/results/scan_001' },
+  { label: 'Scan in progress', path: '/' },
+  { label: 'Results', path: '/' },
   { label: 'History',          path: '/history' },
 ]
 
@@ -19,13 +19,43 @@ export default function Navbar() {
   const navigate = useNavigate()
 
   const getTabPath = (tab) => {
-    if (tab.label === 'Scan in progress' && activeScan) return `/scan/${activeScan.id}`
-    if (tab.label === 'Results') {
-      const ids = Object.keys(scanResults)
-      if (ids.length) return `/results/${ids[ids.length - 1]}`
+
+  // =====================================
+  // ACTIVE SCAN
+  // =====================================
+
+  if (tab.label === 'Scan in progress') {
+
+    if (activeScan?.id) {
+
+      return `/scan/${activeScan.id}`
     }
-    return tab.path
+
+    return '/'
   }
+
+  // =====================================
+  // RESULTS
+  // =====================================
+
+  if (tab.label === 'Results') {
+
+    const ids = Object.keys(
+      scanResults
+    )
+
+    if (ids.length) {
+
+      return `/results/${
+        ids[ids.length - 1]
+      }`
+    }
+
+    return '/'
+  }
+
+  return tab.path
+}
 
   const isTabActive = (tab) => {
     if (tab.label === 'New scan') return location.pathname === '/'

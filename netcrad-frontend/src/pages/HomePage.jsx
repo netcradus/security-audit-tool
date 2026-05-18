@@ -9,7 +9,7 @@ import clsx from 'clsx'
 const features = [
   { icon: Shield,    title: 'OWASP Top 10',    desc: 'A01–A10 mapped findings' },
   { icon: Lock,      title: 'SSL / TLS check', desc: 'Cert expiry & cipher audit' },
-  { icon: BarChart2, title: 'CVSS v3 scoring', desc: 'Per-finding risk scores' },
+  { icon: BarChart2, title: 'Risk scoring', desc: 'Per-finding risk scores' },
   { icon: Server,    title: 'Port scanner',    desc: 'Nmap 1–1024' },
   { icon: FileText,  title: 'PDF report',      desc: 'Download full audit' },
   { icon: Globe,     title: 'Header analysis', desc: 'CSP, HSTS, X-Frame' },
@@ -37,7 +37,13 @@ export default function HomePage() {
     setError('')
     setLoading(true)
     try {
-      const response = await scanApi.start(trimmed)
+      const response = await scanApi.start({
+        target: new URL(
+          trimmed.startsWith('http')
+            ? trimmed
+            : `https://${trimmed}`
+        ).hostname
+      })
       const id = response.scan_id
       startScan(id, trimmed)
       navigate(`/scan/${id}`)

@@ -149,7 +149,11 @@ export default function ResultsPage() {
       const blob = await reportApi.getPdf(id, reportMeta)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      const safeTarget = String(result.url || 'scan').replace(/[^a-z0-9.-]+/gi, '-').toLowerCase()
+      const safeTarget = String(
+              result.url ||
+              result.target ||
+              'scan'
+            ).replace(/[^a-z0-9.-]+/gi, '-').toLowerCase()
       a.href = url
       a.download = `netcrad-${safeTarget}-${id}.pdf`
       a.click()
@@ -168,7 +172,7 @@ export default function ResultsPage() {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
           <h2 className={clsx('font-display font-bold text-xl', isDark ? 'text-white' : 'text-slate-900')}>
-            {result.url}
+            {result.url || result.target}
           </h2>
           <p className={clsx('text-xs mt-0.5', isDark ? 'text-slate-500' : 'text-slate-400')}>
             Scanned {result.scannedAt} · {result.findings?.length} findings

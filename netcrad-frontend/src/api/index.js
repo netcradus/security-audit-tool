@@ -1,54 +1,143 @@
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+const BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  'http://127.0.0.1:8000/api/v1'
+
 
 const api = axios.create({
+
   baseURL: BASE_URL,
+
   timeout: 30000,
-  headers: { 'Content-Type': 'application/json' },
+
+  headers: {
+    'Content-Type': 'application/json',
+  },
 })
 
-// Request interceptor: backend uses an API key header, not bearer auth.
+
+// =====================================
+// REQUEST INTERCEPTOR
+// =====================================
+
 api.interceptors.request.use(
+
   config => {
-    const apiKey = import.meta.env.VITE_API_KEY || localStorage.getItem('netcrad-api-key')
-    if (apiKey) config.headers['x-api-key'] = apiKey
+
+    const apiKey =
+
+      import.meta.env.VITE_API_KEY ||
+
+      localStorage.getItem(
+        'netcrad-api-key'
+      )
+
+    if (apiKey) {
+
+      config.headers['x-api-key'] =
+        apiKey
+    }
+
     return config
   },
+
   err => Promise.reject(err)
 )
 
-// Response interceptor — normalise errors
+
+// =====================================
+// RESPONSE INTERCEPTOR
+// =====================================
+
 api.interceptors.response.use(
-  res => res.data,
+
+  res => res,
+
   err => {
-    const msg = err.response?.data?.detail || err.response?.data?.message || err.message || 'Request failed'
-    return Promise.reject(new Error(msg))
+
+    const msg =
+
+      err.response?.data?.detail ||
+
+      err.response?.data?.message ||
+
+      err.message ||
+
+      'Request failed'
+
+    return Promise.reject(
+      new Error(msg)
+    )
   }
 )
 
-// ── Scan endpoints ────────────────────────────────────────
+
+// =====================================
+// SCAN API
+// =====================================
+
 export const scanApi = {
-  /** POST /scan - start a new scan, returns { scan_id, status } */
-  start: (target) => api.post('/scan', { target }),
 
-  /** GET /scan/:id — poll scan status */
-  getStatus: (id) => api.get(`/scan/${id}`),
+  start: async (payload) => {
 
-  /** GET /history - list all past scans */
-  getHistory: () => api.get('/history'),
+    const res = await api.post(
+      '/scan',
+      payload
+    )
+
+    return res.data
+  },
+
+  getStatus: async (id) => {
+
+    const res = await api.get(
+      `/scan/${id}`
+    )
+
+    return res.data
+  },
+
+  getHistory: async () => {
+
+    const res = await api.get(
+      '/history'
+    )
+
+    return res.data
+  },
 }
 
-// ── Report endpoints ──────────────────────────────────────
+
+// =====================================
+// REPORT API
+// =====================================
+
 export const reportApi = {
-  /** GET /scan/:id/report - download backend-generated PDF report */
-  getPdf: (id, meta) => api.get(`/scan/${id}/report`, {
-    responseType: 'blob',
-    params: {
-      company_name: meta.companyName,
-      audit_by: meta.auditBy,
-    },
-  }),
+
+  getPdf: async (id, meta) => {
+
+    const res = await api.get(
+
+      `/scan/${id}/report`,
+
+      {
+
+        responseType: 'blob',
+
+        params: {
+
+          company_name:
+            meta.companyName,
+
+          audit_by:
+            meta.auditBy,
+        },
+      }
+    )
+
+    return res.data
+  },
 }
 
 export default api
