@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Shield, Globe, Lock, BarChart2, Server, FileText, ChevronDown, Scan } from 'lucide-react'
 import { useScan } from '../context/ScanContext'
 import { useTheme } from '../context/ThemeContext'
+import { scanApi } from '../api'
 import clsx from 'clsx'
 
 const features = [
@@ -13,8 +14,6 @@ const features = [
   { icon: FileText,  title: 'PDF report',      desc: 'Download full audit' },
   { icon: Globe,     title: 'Header analysis', desc: 'CSP, HSTS, X-Frame' },
 ]
-
-let scanCounter = 100
 
 export default function HomePage() {
   const [url, setUrl] = useState('')
@@ -37,10 +36,16 @@ export default function HomePage() {
     if (!validate(trimmed)) { setError('Enter a valid URL like https://example.com'); return }
     setError('')
     setLoading(true)
-    const id = `scan_${++scanCounter}_${Date.now()}`
-    await new Promise(r => setTimeout(r, 400)) // brief UX pause
-    startScan(id, trimmed)
-    navigate(`/scan/${id}`)
+    try {
+      const response = await scanApi.start(trimmed)
+      const id = response.scan_id
+      startScan(id, trimmed)
+      navigate(`/scan/${id}`)
+    } catch (err) {
+      setError(err.message || 'Unable to start scan')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleKey = (e) => { if (e.key === 'Enter') handleScan() }
@@ -100,7 +105,7 @@ export default function HomePage() {
       </div>
 
       {/* Feature cards */}
-      <div className="grid grid-cols-3 gap-3 mt-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-8">
         {features.map(({ icon: Icon, title, desc }) => (
           <div key={title} className={clsx(
             'p-4 rounded-xl border transition-all duration-200 hover:border-brand-500/40 group cursor-default',
@@ -116,14 +121,14 @@ export default function HomePage() {
       </div>
 
       {/* Scroll hint */}
-      <div className="flex justify-center mt-12">
+      {/* <div className="flex justify-center mt-12">
         <div className={clsx(
           'w-8 h-8 rounded-full border flex items-center justify-center animate-bounce',
           isDark ? 'border-dark-border text-slate-500' : 'border-light-border text-slate-400'
         )}>
           <ChevronDown size={14} />
         </div>
-      </div>
+      </div> */}
     </div>
   )
 }

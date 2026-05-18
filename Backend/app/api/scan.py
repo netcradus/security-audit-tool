@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi import APIRouter, Request, HTTPException, Depends, Query
+from fastapi.responses import FileResponse
 
 from pydantic import BaseModel
 from uuid import uuid4
+import os
+import re
 
 from concurrent.futures import ThreadPoolExecutor
 
 from app.core.scan_runner import run_full_scan
+from app.core.report_generator import generate_professional_report
 from app.core.limiter import limiter
 
 from app.storage.history import create_scan, get_scan, get_all_scans
@@ -93,6 +97,78 @@ def get_scan_result(scan_id: str):
         raise HTTPException(status_code=404, detail="Scan not found")
 
     return scan
+
+
+# =====================================
+# DOWNLOAD PDF REPORT
+# =====================================
+
+
+@router.get("/scan/{scan_id}/report", dependencies=[Depends(verify_api_key)])
+def download_scan_report(
+    scan_id: str,
+    company_name: str = Query(..., min_length=1),
+    audit_by: str = Query(..., min_length=1)
+):
+
+    scan = get_scan(scan_id)
+
+    if not scan:
+
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    if scan.get("status") != "completed":
+
+        raise HTTPException(status_code=409, detail="Scan report is not ready yet")
+
+    results = scan.get("results") or {}
+
+    if not results:
+
+        raise HTTPException(status_code=404, detail="Report data not found")
+
+    target = scan.get("target") or scan_id
+
+    safe_target = re.sub(r"[^a-zA-Z0-9.-]+", "-", target).strip("-")
+
+    reports_dir = os.getenv(
+        "REPORTS_DIR",
+        "reports"
+    )
+
+    os.makedirs(
+        reports_dir,
+        exist_ok=True
+    )
+
+    report_path = os.path.join(
+        reports_dir,
+        f"{scan_id}-download.pdf"
+    )
+
+    try:
+
+        generate_professional_report(
+            report_path,
+            results,
+            {
+                "company_name": company_name,
+                "audit_by": audit_by
+            }
+        )
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Report generation failed: {e}"
+        )
+
+    return FileResponse(
+        report_path,
+        media_type="application/pdf",
+        filename=f"netcrad-{safe_target}-{scan_id}.pdf"
+    )
 
 
 # =====================================

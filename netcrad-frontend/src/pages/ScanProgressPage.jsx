@@ -1,28 +1,79 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { CheckCircle, Clock, Loader, Globe, Eye, ChevronRight } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Clock, Loader, Globe, Eye } from 'lucide-react'
 import { useScan } from '../context/ScanContext'
 import { useTheme } from '../context/ThemeContext'
-import { useScanSimulator } from '../hooks/useScanSimulator'
+import { scanApi } from '../api'
+import { mapBackendScanToResult, scanStagesFromStatus } from '../utils/scanTransform'
 import StageResultModal from '../components/scanner/StageResultModal'
 import clsx from 'clsx'
 
 export default function ScanProgressPage() {
   const { id } = useParams()
-  const { activeScan } = useScan()
+  const { activeScan, setActiveScan, saveResults } = useScan()
   const { isDark } = useTheme()
   const navigate = useNavigate()
   const [selectedStage, setSelectedStage] = useState(null)
+  const [error, setError] = useState('')
 
-  // Start simulator
-  useScanSimulator(id, (scanId) => {
-    setTimeout(() => navigate(`/results/${scanId}`), 800)
-  })
+  useEffect(() => {
+    let cancelled = false
+    let timer
 
-  if (!activeScan) {
+    const pollScan = async () => {
+      try {
+        const scan = await scanApi.getStatus(id)
+        if (cancelled) return
+
+        const result = mapBackendScanToResult(scan, id)
+        setActiveScan(prev => ({
+          id,
+          url: result.url || prev?.url || scan.target,
+          startedAt: result.startedAt || prev?.startedAt,
+          status: result.status,
+          error: result.error,
+          stages: scanStagesFromStatus(result),
+        }))
+
+        if (result.status === 'completed') {
+          saveResults(id, result)
+          timer = setTimeout(() => navigate(`/results/${id}`), 800)
+          return
+        }
+
+        if (result.status === 'failed') {
+          setError(result.error || 'Scan failed')
+          return
+        }
+
+        timer = setTimeout(pollScan, 2500)
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Unable to load scan status')
+      }
+    }
+
+    pollScan()
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [id, navigate, saveResults, setActiveScan])
+
+  if (!activeScan && !error) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <p className={clsx('text-sm', isDark ? 'text-slate-400' : 'text-slate-500')}>No active scan. <button onClick={() => navigate('/')} className="text-brand-500 hover:underline">Start a new scan</button></p>
+        <Loader size={22} className="mx-auto mb-3 text-brand-500 animate-spin" />
+        <p className={clsx('text-sm', isDark ? 'text-slate-400' : 'text-slate-500')}>Loading scan status...</p>
+      </div>
+    )
+  }
+
+  if (error && !activeScan) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <p className="text-sm text-red-400 mb-3">{error}</p>
+        <button onClick={() => navigate('/')} className="text-brand-500 hover:underline">Start a new scan</button>
       </div>
     )
   }
@@ -54,7 +105,7 @@ export default function ScanProgressPage() {
           />
         </div>
         <div className={clsx('text-xs', isDark ? 'text-slate-500' : 'text-slate-400')}>
-          {doneCount} of {activeScan.stages.length} stages complete
+          {activeScan.status === 'failed' ? activeScan.error || error : `${doneCount} of ${activeScan.stages.length} stages complete`}
         </div>
       </div>
 
@@ -90,12 +141,14 @@ function StageRow({ stage, isDark, isLast, onViewResult }) {
     done:    <CheckCircle size={18} className="text-brand-500" />,
     running: <Loader size={18} className="text-brand-400 animate-spin" />,
     queued:  <Clock size={18} className={isDark ? 'text-slate-600' : 'text-slate-400'} />,
+    failed:  <AlertTriangle size={18} className="text-red-400" />,
   }
 
   const statusLabel = {
     done:    <span className="text-brand-500 text-xs font-semibold">Done</span>,
     running: <span className="text-brand-400 text-xs font-semibold tabular-nums">{stage.progress}%</span>,
     queued:  <span className={clsx('text-xs font-medium', isDark ? 'text-slate-500' : 'text-slate-400')}>Queued</span>,
+    failed:  <span className="text-red-400 text-xs font-semibold">Failed</span>,
   }
 
   return (

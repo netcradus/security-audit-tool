@@ -14,88 +14,7 @@ from reportlab.lib.pagesizes import letter
 from datetime import datetime
 
 
-# ======================================
-# DYNAMIC EXECUTIVE SUMMARY
-# ======================================
-
-def generate_executive_summary(results):
-
-    summary = results.get(
-        "summary",
-        {}
-    )
-
-    critical = summary.get("critical", 0)
-    high = summary.get("high", 0)
-    medium = summary.get("medium", 0)
-    low = summary.get("low", 0)
-
-    asset_risk = results.get(
-        "asset_risk",
-        "Unknown"
-    )
-
-    if critical > 0:
-
-        posture = (
-            "The assessment identified "
-            "critical security risks "
-            "requiring immediate remediation."
-        )
-
-    elif high > 0:
-
-        posture = (
-            "The assessment identified "
-            "high-risk vulnerabilities "
-            "that could significantly "
-            "impact the security posture."
-        )
-
-    elif medium > 0:
-
-        posture = (
-            "The assessment identified "
-            "moderate security weaknesses "
-            "requiring remediation attention."
-        )
-
-    else:
-
-        posture = (
-            "No major security weaknesses "
-            "were identified during "
-            "the assessment."
-        )
-
-    return f"""
-The security assessment was conducted against the target environment to identify externally observable vulnerabilities, exposed services, and security misconfigurations.
-
-The assessment identified:
-
-- {critical} Critical findings
-- {high} High findings
-- {medium} Medium findings
-- {low} Low findings
-
-Overall asset risk was assessed as {asset_risk}.
-
-{posture}
-
-It is recommended that identified findings be reviewed and remediated based on severity and business impact to improve the overall security posture of the environment.
-"""
-
-
-# ======================================
-# PDF REPORT GENERATION
-# ======================================
-
-def generate_professional_report(
-    path,
-    results,
-    company_name=None,
-    auditor_name=None
-):
+def generate_professional_report(path, results):
 
     doc = SimpleDocTemplate(
         path,
@@ -145,6 +64,31 @@ def generate_professional_report(
     )
 
     elements.append(Spacer(1, 10))
+
+    company_name = metadata.get("company_name")
+    audit_by = metadata.get("audit_by")
+
+    if company_name:
+
+        elements.append(
+            Paragraph(
+                f"<b>Company:</b> {company_name}",
+                styles['BodyText']
+            )
+        )
+
+        elements.append(Spacer(1, 6))
+
+    if audit_by:
+
+        elements.append(
+            Paragraph(
+                f"<b>Audit by:</b> {audit_by}",
+                styles['BodyText']
+            )
+        )
+
+        elements.append(Spacer(1, 10))
 
     elements.append(
         Paragraph(

@@ -51,6 +51,30 @@ def init_db():
     )
     """)
 
+    cursor.execute("PRAGMA table_info(scans)")
+    existing_columns = {
+        row[1]
+        for row in cursor.fetchall()
+    }
+
+    required_columns = {
+        "scan_id": "TEXT PRIMARY KEY",
+        "target": "TEXT",
+        "status": "TEXT",
+        "results": "TEXT",
+        "report": "TEXT",
+        "error": "TEXT",
+        "started_at": "TEXT",
+        "completed_at": "TEXT",
+        "duration_seconds": "REAL"
+    }
+
+    for column, column_type in required_columns.items():
+        if column not in existing_columns:
+            cursor.execute(
+                f"ALTER TABLE scans ADD COLUMN {column} {column_type}"
+            )
+
     conn.commit()
 
     conn.close()

@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Download, ChevronRight, Filter, Server, Globe, Lock, Shield, BarChart2, X } from 'lucide-react'
+import { Download, ChevronRight, Filter, Server, Globe, Lock, Shield, Loader } from 'lucide-react'
 import { useScan } from '../context/ScanContext'
 import { useTheme } from '../context/ThemeContext'
-import { getResultById, mockScanResult } from '../data/mockData'
+import { reportApi, scanApi } from '../api'
+import { mapBackendScanToResult } from '../utils/scanTransform'
 import GradeBadge from '../components/shared/GradeBadge'
 import SeverityBadge from '../components/shared/SeverityBadge'
 import FindingDrawer from '../components/results/FindingDrawer'
+import ReportDownloadModal from '../components/results/ReportDownloadModal'
 import StageResultModal from '../components/scanner/StageResultModal'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import clsx from 'clsx'
@@ -23,10 +25,13 @@ const scannerTabs = [
 
 export default function ResultsPage() {
   const { id } = useParams()
-  const { scanResults } = useScan()
+  const { scanResults, saveResults } = useScan()
   const { isDark } = useTheme()
   const navigate = useNavigate()
 
+  const [result, setResult] = useState(scanResults[id] || null)
+  const [loading, setLoading] = useState(!scanResults[id])
+  const [loadError, setLoadError] = useState('')
   const [severityFilter, setSeverityFilter] = useState('All')
   const [activeScanner, setActiveScanner] = useState('merged')
   const [activeFinding, setActiveFinding] = useState(null)
@@ -36,10 +41,69 @@ export default function ResultsPage() {
     companyName: '',
     auditBy: '',
   })
+  const [downloadingReport, setDownloadingReport] = useState(false)
   const [reportError, setReportError] = useState('')
 
-  // Resolve result: from context (live) or mock fallback
-  const result = scanResults[id] || getResultById(id) || mockScanResult
+  useEffect(() => {
+    let cancelled = false
+
+    const loadResult = async () => {
+      setLoading(true)
+      setLoadError('')
+      try {
+        const scan = await scanApi.getStatus(id)
+        if (cancelled) return
+        const mapped = mapBackendScanToResult(scan, id)
+        setResult(mapped)
+        if (mapped.status === 'completed') saveResults(id, mapped)
+      } catch (err) {
+        if (!cancelled) setLoadError(err.message || 'Unable to load scan results')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    if (scanResults[id]) {
+      setResult(scanResults[id])
+      setLoading(false)
+      return
+    }
+
+    loadResult()
+
+    return () => {
+      cancelled = true
+    }
+  }, [id, scanResults, saveResults])
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <Loader size={22} className="mx-auto mb-3 text-brand-500 animate-spin" />
+        <p className={clsx('text-sm', isDark ? 'text-slate-400' : 'text-slate-500')}>Loading scan results...</p>
+      </div>
+    )
+  }
+
+  if (loadError || !result) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <p className="text-sm text-red-400 mb-3">{loadError || 'Scan result not found'}</p>
+        <button onClick={() => navigate('/history')} className="text-brand-500 hover:underline">Back to history</button>
+      </div>
+    )
+  }
+
+  if (result.status !== 'completed') {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <p className={clsx('text-sm mb-3', isDark ? 'text-slate-400' : 'text-slate-500')}>
+          Scan is currently {result.status || 'running'}.
+        </p>
+        <button onClick={() => navigate(`/scan/${id}`)} className="text-brand-500 hover:underline">View scan progress</button>
+      </div>
+    )
+  }
 
   const pieData = [
     { name: 'Critical', value: result.critical, color: '#ff3b5c' },
@@ -72,28 +136,36 @@ export default function ResultsPage() {
     setReportError('')
   }
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!reportMeta.companyName.trim() || !reportMeta.auditBy.trim()) {
       setReportError('Company name and audit by are required')
       return
     }
 
-    const reportHtml = buildReportHtml(result, reportMeta)
-    const blob = new Blob([reportHtml], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    const safeTarget = String(result.url || 'scan').replace(/[^a-z0-9.-]+/gi, '-').toLowerCase()
-    a.href = url
-    a.download = `netcrad-${safeTarget}-security-report.html`
-    a.click()
-    URL.revokeObjectURL(url)
-    setReportModalOpen(false)
+    setDownloadingReport(true)
+    setReportError('')
+
+    try {
+      const blob = await reportApi.getPdf(id, reportMeta)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const safeTarget = String(result.url || 'scan').replace(/[^a-z0-9.-]+/gi, '-').toLowerCase()
+      a.href = url
+      a.download = `netcrad-${safeTarget}-${id}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      setReportModalOpen(false)
+    } catch (err) {
+      setReportError(err.message || 'Unable to download report')
+    } finally {
+      setDownloadingReport(false)
+    }
   }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 animate-slide-up">
       {/* Top bar */}
-      <div className="flex items-start justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
           <h2 className={clsx('font-display font-bold text-xl', isDark ? 'text-white' : 'text-slate-900')}>
             {result.url}
@@ -102,15 +174,23 @@ export default function ResultsPage() {
             Scanned {result.scannedAt} · {result.findings?.length} findings
           </p>
         </div>
-        <button onClick={() => setReportModalOpen(true)} className="btn-secondary flex items-center gap-2 text-sm">
+        <button
+          onClick={() => {
+            setReportError('')
+            setReportModalOpen(true)
+          }}
+          disabled={downloadingReport}
+          className="btn-secondary flex items-center justify-center gap-2 text-sm w-full sm:w-auto disabled:opacity-60"
+        >
           <Download size={14} />
-          Download Report
+          {downloadingReport ? 'Downloading...' : 'Download Report'}
         </button>
       </div>
+      {reportError && <p className="text-sm text-red-400 mb-4">{reportError}</p>}
 
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left — grade card */}
-        <div className="col-span-1">
+        <div className="lg:col-span-1">
           <div className={clsx('rounded-2xl border p-5', isDark ? 'bg-dark-card border-dark-border' : 'bg-light-surface border-light-border')}>
             <div className={clsx('text-xs text-center mb-4', isDark ? 'text-slate-500' : 'text-slate-400')}>Site grade</div>
             <div className="flex justify-center mb-3">
@@ -156,7 +236,7 @@ export default function ResultsPage() {
         </div>
 
         {/* Right — findings */}
-        <div className="col-span-2">
+        <div className="lg:col-span-2 min-w-0">
           <div className={clsx('rounded-2xl border overflow-hidden', isDark ? 'bg-dark-card border-dark-border' : 'bg-light-surface border-light-border')}>
             {/* Scanner tab bar */}
             <div className={clsx('flex border-b overflow-x-auto', isDark ? 'border-dark-border' : 'border-light-border')}>
@@ -212,15 +292,15 @@ export default function ResultsPage() {
                     key={f.id}
                     onClick={() => setActiveFinding(f)}
                     className={clsx(
-                      'w-full flex items-center gap-3 px-4 py-3 transition-colors text-left group',
+                      'w-full flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 px-4 py-3 transition-colors text-left group',
                       isDark ? 'hover:bg-dark-surface/60' : 'hover:bg-light-card/60'
                     )}
                   >
                     <SeverityBadge severity={f.severity} />
-                    <span className={clsx('flex-1 text-sm font-medium truncate', isDark ? 'text-slate-200' : 'text-slate-800')}>
+                    <span className={clsx('flex-1 min-w-[9rem] text-sm font-medium truncate', isDark ? 'text-slate-200' : 'text-slate-800')}>
                       {f.title}
                     </span>
-                    <span className={clsx('text-xs font-mono', isDark ? 'text-slate-500' : 'text-slate-400')}>{f.owasp}</span>
+                    <span className={clsx('text-xs font-mono max-w-[11rem] truncate', isDark ? 'text-slate-500' : 'text-slate-400')}>{f.owasp}</span>
                     <span className={clsx(
                       'text-xs font-mono tabular-nums w-8 text-right',
                       f.cvss >= 9 ? 'text-red-400' : f.cvss >= 7 ? 'text-orange-400' : f.cvss >= 4 ? 'text-yellow-400' : 'text-green-400'
@@ -248,203 +328,15 @@ export default function ResultsPage() {
 
       {reportModalOpen && (
         <ReportDownloadModal
-          isDark={isDark}
           reportMeta={reportMeta}
           reportError={reportError}
+          downloading={downloadingReport}
           onChange={handleReportMetaChange}
           onClose={() => setReportModalOpen(false)}
           onDownload={handleDownload}
         />
       )}
+
     </div>
   )
-}
-
-function ReportDownloadModal({ isDark, reportMeta, reportError, onChange, onClose, onDownload }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm">
-      <div className={clsx(
-        'w-full max-w-md rounded-2xl border shadow-2xl',
-        isDark ? 'bg-dark-card border-dark-border' : 'bg-light-surface border-light-border'
-      )}>
-        <div className={clsx('flex items-center justify-between px-5 py-4 border-b', isDark ? 'border-dark-border' : 'border-light-border')}>
-          <div>
-            <h3 className={clsx('font-display font-bold text-lg', isDark ? 'text-white' : 'text-slate-900')}>Report details</h3>
-            <p className={clsx('text-xs mt-0.5', isDark ? 'text-slate-500' : 'text-slate-400')}>These details will appear on the downloaded audit report.</p>
-          </div>
-          <button
-            onClick={onClose}
-            className={clsx('w-8 h-8 rounded-lg flex items-center justify-center transition-colors', isDark ? 'hover:bg-dark-surface text-slate-400' : 'hover:bg-light-card text-slate-500')}
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="p-5 space-y-4">
-          <label className="block">
-            <span className={clsx('block text-xs font-semibold mb-1.5', isDark ? 'text-slate-300' : 'text-slate-700')}>Company name</span>
-            <input
-              value={reportMeta.companyName}
-              onChange={e => onChange('companyName', e.target.value)}
-              className="input-field"
-              placeholder="Company name"
-            />
-          </label>
-
-          <label className="block">
-            <span className={clsx('block text-xs font-semibold mb-1.5', isDark ? 'text-slate-300' : 'text-slate-700')}>Audit by</span>
-            <input
-              value={reportMeta.auditBy}
-              onChange={e => onChange('auditBy', e.target.value)}
-              className="input-field"
-              placeholder="Auditor name"
-            />
-          </label>
-
-          {reportError && <p className="text-xs text-red-400">{reportError}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={onClose} className="btn-secondary">Cancel</button>
-            <button onClick={onDownload} className="btn-primary">
-              <Download size={14} />
-              Download
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const escapeHtml = (value) => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#039;')
-
-const rows = (items, cells) => (items || []).map(item => (
-  `<tr>${cells.map(cell => `<td>${escapeHtml(typeof cell === 'function' ? cell(item) : item[cell])}</td>`).join('')}</tr>`
-)).join('')
-
-function buildReportHtml(result, meta) {
-  const generatedAt = new Date().toLocaleString()
-  const findings = result.findings || []
-  const totalFindings = findings.length
-  const summary = `${totalFindings} findings were identified for ${result.url}. The current site grade is ${result.grade}, with an average CVSS score of ${result.cvssAvg}. The strongest remediation priority is to address critical and high severity findings first, then resolve medium and low issues as part of normal hardening.`
-
-  return `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Netcrad Security Report - ${escapeHtml(result.url)}</title>
-  <style>
-    body { margin: 0; font-family: Arial, sans-serif; color: #172033; background: #f5f7fb; line-height: 1.5; }
-    main { max-width: 960px; margin: 0 auto; padding: 36px 28px; background: #fff; }
-    h1, h2, h3 { margin: 0; color: #111827; }
-    h1 { font-size: 30px; }
-    h2 { margin-top: 34px; padding-bottom: 8px; border-bottom: 2px solid #f05a28; font-size: 20px; }
-    h3 { margin-top: 22px; font-size: 16px; }
-    p { margin: 8px 0 0; }
-    .cover { padding: 28px; background: #111827; color: #fff; border-radius: 12px; }
-    .cover h1, .cover p { color: #fff; }
-    .meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 20px; }
-    .box { border: 1px solid #d9dee8; border-radius: 8px; padding: 12px; background: #fafbfe; }
-    .label { display: block; font-size: 11px; color: #687386; text-transform: uppercase; letter-spacing: .04em; }
-    .value { display: block; margin-top: 3px; font-weight: 700; color: #172033; }
-    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
-    th { background: #172033; color: #fff; text-align: left; }
-    th, td { border: 1px solid #d9dee8; padding: 9px; vertical-align: top; }
-    tr:nth-child(even) td { background: #fafbfe; }
-    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
-    .score { border-radius: 8px; padding: 14px; color: #fff; }
-    .critical { background: #dc2626; }
-    .high { background: #ea580c; }
-    .medium { background: #ca8a04; }
-    .low { background: #16a34a; }
-    .note { padding: 12px; border-left: 4px solid #f05a28; background: #fff7ed; margin-top: 12px; }
-    .footer { margin-top: 34px; font-size: 12px; color: #687386; }
-    @media print { body { background: #fff; } main { padding: 0; } .cover { border-radius: 0; } }
-  </style>
-</head>
-<body>
-<main>
-  <section class="cover">
-    <h1>Web Security Assessment Report</h1>
-    <p>Prepared for ${escapeHtml(meta.companyName)} by ${escapeHtml(meta.auditBy)}</p>
-  </section>
-
-  <section class="meta">
-    <div class="box"><span class="label">Target</span><span class="value">${escapeHtml(result.url)}</span></div>
-    <div class="box"><span class="label">Generated</span><span class="value">${escapeHtml(generatedAt)}</span></div>
-    <div class="box"><span class="label">Grade</span><span class="value">${escapeHtml(result.grade)}</span></div>
-    <div class="box"><span class="label">CVSS Average</span><span class="value">${escapeHtml(result.cvssAvg)}</span></div>
-  </section>
-
-  <h2>Short Summary</h2>
-  <p>${escapeHtml(summary)}</p>
-  <div class="note">This report should be used for authorized security review only. Confirm every finding before production remediation.</div>
-
-  <h2>Severity Overview</h2>
-  <div class="summary-grid">
-    <div class="score critical"><strong>${escapeHtml(result.critical)}</strong><br />Critical</div>
-    <div class="score high"><strong>${escapeHtml(result.high)}</strong><br />High</div>
-    <div class="score medium"><strong>${escapeHtml(result.medium)}</strong><br />Medium</div>
-    <div class="score low"><strong>${escapeHtml(result.low)}</strong><br />Low</div>
-  </div>
-
-  <h2>Scanner Results</h2>
-  <h3>Port Scan</h3>
-  <p>${escapeHtml(result.portResult?.summary || 'No port scan summary available.')}</p>
-  <table><thead><tr><th>Port</th><th>Protocol</th><th>Service</th><th>State</th><th>Version</th><th>Risk</th></tr></thead><tbody>
-    ${rows(result.portResult?.ports, ['port', 'protocol', 'service', 'state', 'version', 'risk']) || '<tr><td colspan="6">No port records available.</td></tr>'}
-  </tbody></table>
-
-  <h3>Header Analysis</h3>
-  <p>${escapeHtml(result.headerResult?.summary || 'No header summary available.')}</p>
-  <table><thead><tr><th>Header</th><th>Present</th><th>Severity</th><th>Value</th><th>Recommendation</th></tr></thead><tbody>
-    ${rows(result.headerResult?.headers, ['name', item => item.present ? 'Yes' : 'No', 'severity', 'value', 'recommendation']) || '<tr><td colspan="5">No header records available.</td></tr>'}
-  </tbody></table>
-
-  <h3>SSL / TLS</h3>
-  <p>${escapeHtml(result.sslResult?.summary || 'No SSL summary available.')}</p>
-  <table><tbody>
-    <tr><th>Certificate Expiry</th><td>${escapeHtml(result.sslResult?.certExpiry)}</td></tr>
-    <tr><th>Days Left</th><td>${escapeHtml(result.sslResult?.daysLeft)}</td></tr>
-    <tr><th>Issuer</th><td>${escapeHtml(result.sslResult?.issuer)}</td></tr>
-    <tr><th>Weak Ciphers</th><td>${escapeHtml((result.sslResult?.weakCiphers || []).join(', ') || 'None reported')}</td></tr>
-  </tbody></table>
-
-  <h3>OWASP ZAP</h3>
-  <p>${escapeHtml(result.zapResult?.summary || 'No ZAP summary available.')}</p>
-  <table><thead><tr><th>Alert</th><th>URL</th><th>Risk</th><th>Confidence</th><th>Description</th></tr></thead><tbody>
-    ${rows(result.zapResult?.alerts, ['name', 'url', 'risk', 'confidence', 'description']) || '<tr><td colspan="5">No ZAP alerts available.</td></tr>'}
-  </tbody></table>
-
-  <h2>Detailed Findings</h2>
-  <table><thead><tr><th>#</th><th>Severity</th><th>Finding</th><th>OWASP</th><th>CVSS</th><th>Scanner</th><th>Explanation</th><th>Recommended Fix</th></tr></thead><tbody>
-    ${findings.map((finding, index) => `<tr>
-      <td>${index + 1}</td>
-      <td>${escapeHtml(finding.severity)}</td>
-      <td>${escapeHtml(finding.title)}</td>
-      <td>${escapeHtml(finding.owasp)}</td>
-      <td>${escapeHtml(finding.cvss)}</td>
-      <td>${escapeHtml(finding.scanner)}</td>
-      <td>${escapeHtml(finding.description)}</td>
-      <td>${escapeHtml(finding.fix || finding.solution || 'Review configuration and apply vendor security guidance.')}</td>
-    </tr>`).join('') || '<tr><td colspan="8">No findings available.</td></tr>'}
-  </tbody></table>
-
-  <h2>Recommended Remediation Order</h2>
-  <ol>
-    <li>Fix critical findings immediately, especially injection, exposed database services, and missing browser protections.</li>
-    <li>Resolve high severity network, TLS, and application issues before public release.</li>
-    <li>Harden headers, cookies, and HTTP methods to reduce attack surface.</li>
-    <li>Re-scan the target after remediation and compare the new report with this baseline.</li>
-  </ol>
-
-  <p class="footer">Generated by Netcrad security audit frontend. Company: ${escapeHtml(meta.companyName)}. Audit by: ${escapeHtml(meta.auditBy)}.</p>
-</main>
-</body>
-</html>`
 }

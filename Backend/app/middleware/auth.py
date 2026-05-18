@@ -11,6 +11,13 @@ def verify_api_key(
     x_api_key: str = Header(None)
 ):
 
+    if not API_KEY:
+
+        raise HTTPException(
+            status_code=500,
+            detail="API key is not configured"
+        )
+
     if x_api_key != API_KEY:
 
         raise HTTPException(
