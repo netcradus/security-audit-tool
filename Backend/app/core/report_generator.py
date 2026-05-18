@@ -14,7 +14,9 @@ from reportlab.lib.pagesizes import letter
 from datetime import datetime
 
 
-def generate_professional_report(path, results):
+def generate_professional_report(path, results, metadata=None):
+
+    metadata = metadata or {}
 
     doc = SimpleDocTemplate(
         path,
@@ -46,6 +48,31 @@ def generate_professional_report(path, results):
     )
 
     elements.append(Spacer(1, 10))
+
+    company_name = metadata.get("company_name")
+    audit_by = metadata.get("audit_by")
+
+    if company_name:
+
+        elements.append(
+            Paragraph(
+                f"<b>Company:</b> {company_name}",
+                styles['BodyText']
+            )
+        )
+
+        elements.append(Spacer(1, 6))
+
+    if audit_by:
+
+        elements.append(
+            Paragraph(
+                f"<b>Audit by:</b> {audit_by}",
+                styles['BodyText']
+            )
+        )
+
+        elements.append(Spacer(1, 10))
 
     elements.append(
         Paragraph(

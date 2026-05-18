@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Download, ChevronRight, BarChart2, Loader } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
-import { scanApi } from '../api'
+import { reportApi, scanApi } from '../api'
 import { mapHistoryResponse } from '../utils/scanTransform'
 import GradeBadge from '../components/shared/GradeBadge'
+import ReportDownloadModal from '../components/results/ReportDownloadModal'
 import clsx from 'clsx'
 
 export default function HistoryPage() {
@@ -13,6 +14,13 @@ export default function HistoryPage() {
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [selectedReport, setSelectedReport] = useState(null)
+  const [reportMeta, setReportMeta] = useState({
+    companyName: '',
+    auditBy: '',
+  })
+  const [reportError, setReportError] = useState('')
+  const [downloadingReport, setDownloadingReport] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -39,8 +47,42 @@ export default function HistoryPage() {
 
   const allHistory = history
 
-  const handleDownload = (id, url) => {
-    alert(`Open the results page for ${url} to download the generated HTML report.`)
+  const handleReportMetaChange = (field, value) => {
+    setReportMeta(prev => ({ ...prev, [field]: value }))
+    setReportError('')
+  }
+
+  const openDownloadModal = (scan) => {
+    setSelectedReport(scan)
+    setReportError('')
+  }
+
+  const handleDownload = async () => {
+    if (!selectedReport) return
+
+    if (!reportMeta.companyName.trim() || !reportMeta.auditBy.trim()) {
+      setReportError('Company name and audit by are required')
+      return
+    }
+
+    setDownloadingReport(true)
+    setReportError('')
+
+    try {
+      const blob = await reportApi.getPdf(selectedReport.id, reportMeta)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const safeTarget = String(selectedReport.url || 'scan').replace(/[^a-z0-9.-]+/gi, '-').toLowerCase()
+      a.href = url
+      a.download = `netcrad-${safeTarget}-${selectedReport.id}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      setSelectedReport(null)
+    } catch (err) {
+      setReportError(err.message || 'Unable to download report')
+    } finally {
+      setDownloadingReport(false)
+    }
   }
 
   return (
@@ -140,9 +182,9 @@ export default function HistoryPage() {
             {/* Actions */}
             <div className="col-span-1 sm:col-span-1 flex items-center sm:justify-end gap-1">
               <button
-                onClick={() => handleDownload(scan.id, scan.url)}
+                onClick={() => openDownloadModal(scan)}
                 className={clsx(
-                  'w-7 h-7 rounded-lg flex items-center justify-center transition-colors opacity-0 group-hover:opacity-100',
+                  'w-7 h-7 rounded-lg flex items-center justify-center transition-colors sm:opacity-0 group-hover:opacity-100',
                   isDark ? 'hover:bg-dark-border text-slate-400' : 'hover:bg-light-border text-slate-500'
                 )}
               >
@@ -167,6 +209,17 @@ export default function HistoryPage() {
           </div>
         )}
       </div>
+
+      {selectedReport && (
+        <ReportDownloadModal
+          reportMeta={reportMeta}
+          reportError={reportError}
+          downloading={downloadingReport}
+          onChange={handleReportMetaChange}
+          onClose={() => setSelectedReport(null)}
+          onDownload={handleDownload}
+        />
+      )}
     </div>
   )
 }

@@ -39,4 +39,16 @@ export const scanApi = {
   getHistory: () => api.get('/history'),
 }
 
+// ── Report endpoints ──────────────────────────────────────
+export const reportApi = {
+  /** GET /scan/:id/report - download backend-generated PDF report */
+  getPdf: (id, meta) => api.get(`/scan/${id}/report`, {
+    responseType: 'blob',
+    params: {
+      company_name: meta.companyName,
+      audit_by: meta.auditBy,
+    },
+  }),
+}
+
 export default api

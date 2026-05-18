@@ -121,14 +121,14 @@ export default function HomePage() {
       </div>
 
       {/* Scroll hint */}
-      <div className="flex justify-center mt-12">
+      {/* <div className="flex justify-center mt-12">
         <div className={clsx(
           'w-8 h-8 rounded-full border flex items-center justify-center animate-bounce',
           isDark ? 'border-dark-border text-slate-500' : 'border-light-border text-slate-400'
         )}>
           <ChevronDown size={14} />
         </div>
-      </div>
+      </div> */}
     </div>
   )
 }
