@@ -71,7 +71,9 @@ def start_scan(
     scan_request: ScanRequest
 ):
 
-    target = scan_request.target
+    target = normalize_target(
+        scan_request.target
+    )
 
     # =====================================
     # VALIDATE TARGET
@@ -81,12 +83,8 @@ def start_scan(
 
         raise HTTPException(
             status_code=400,
-            detail="Invalid target"
+            detail="Invalid target. Enter a public domain or public IP address, not localhost or a private network address."
         )
-
-    normalized_target = normalize_target(
-        target
-    )
 
     # =====================================
     # CREATE SCAN
@@ -96,7 +94,7 @@ def start_scan(
 
     create_scan(
         scan_id,
-        normalized_target
+        target
     )
 
     # =====================================
@@ -109,7 +107,7 @@ def start_scan(
 
         scan_id,
 
-        normalized_target,
+        target,
 
         scan_request.company_name,
 

@@ -8,6 +8,16 @@ import GradeBadge from '../components/shared/GradeBadge'
 import ReportDownloadModal from '../components/results/ReportDownloadModal'
 import clsx from 'clsx'
 
+const companyNameFromTarget = (target) => {
+  const cleaned = String(target || '')
+    .replace(/^https?:\/\//i, '')
+    .split('/')[0]
+    .split(':')[0]
+    .replace(/^www\./i, '')
+
+  return cleaned || ''
+}
+
 export default function HistoryPage() {
   const { isDark } = useTheme()
   const navigate = useNavigate()
@@ -55,6 +65,10 @@ export default function HistoryPage() {
   const openDownloadModal = (scan) => {
     setSelectedReport(scan)
     setReportError('')
+    setReportMeta(prev => ({
+      ...prev,
+      companyName: prev.companyName || companyNameFromTarget(scan.url),
+    }))
   }
 
   const handleDownload = async () => {

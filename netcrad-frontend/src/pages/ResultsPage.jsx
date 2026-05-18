@@ -23,6 +23,16 @@ const scannerTabs = [
   { key: 'zap',    label: 'ZAP',          icon: Shield },
 ]
 
+const companyNameFromTarget = (target) => {
+  const cleaned = String(target || '')
+    .replace(/^https?:\/\//i, '')
+    .split('/')[0]
+    .split(':')[0]
+    .replace(/^www\./i, '')
+
+  return cleaned || ''
+}
+
 export default function ResultsPage() {
   const { id } = useParams()
   const { scanResults, saveResults } = useScan()
@@ -181,6 +191,10 @@ export default function ResultsPage() {
         <button
           onClick={() => {
             setReportError('')
+            setReportMeta(prev => ({
+              ...prev,
+              companyName: prev.companyName || companyNameFromTarget(result.url),
+            }))
             setReportModalOpen(true)
           }}
           disabled={downloadingReport}
