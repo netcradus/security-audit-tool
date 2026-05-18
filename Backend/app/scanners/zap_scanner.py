@@ -78,6 +78,8 @@ def run_zap_scan(target):
                     "reference"
                 ),
 
+                "affected_url": alert.get("url"),
+
                 "source": "owasp_zap"
             })
 

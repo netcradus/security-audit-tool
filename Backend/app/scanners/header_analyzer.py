@@ -79,7 +79,8 @@ def analyze_headers(target):
                 findings.append({
                     "title": f"Missing {header['name']} Header",
                     "severity": header["severity"],
-                    "category": "Security Headers"
+                    "category": "Security Headers",
+                    "affected_url": url
                 })
 
         return findings

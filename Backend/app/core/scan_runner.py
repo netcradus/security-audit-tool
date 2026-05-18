@@ -8,6 +8,7 @@ from app.scanners.zap_scanner import run_zap_scan
 from app.scanners.http_methods import analyze_http_methods
 from app.scanners.cookie_analyzer import analyze_cookies
 from app.scanners.ssl_expiry import analyze_ssl_expiry
+from app.scanners.dns_whois import analyze_dns_and_whois
 
 from app.core.aggregator import aggregate_results
 from app.core.deduplicator import deduplicate_findings
@@ -66,6 +67,11 @@ def run_full_scan(scan_id, target):
                 target
             )
 
+            future_dns = executor.submit(
+                analyze_dns_and_whois,
+                target
+            )
+
             # =====================================
             # NMAP RESULTS
             # =====================================
@@ -96,11 +102,47 @@ def run_full_scan(scan_id, target):
 
                 ssl_data.update(ssl_expiry)
 
+                # =====================================
+                # LEGACY TLS DETECTION
+                # =====================================
+
+                supported_protocols = ssl_data.get(
+                    "supported_protocols",
+                    {}
+                )
+
+                # TLS 1.0
+
+                if supported_protocols.get("TLSv1.0"):
+
+                    findings.append({
+                        "title": "TLS 1.0 Supported",
+                        "severity": "high",
+                        "cvss": 7.5,
+                        "category": "Transport Security",
+                        "owasp": "A02:2021 Cryptographic Failures",
+                        "cwe": "CWE-326"
+                    })
+
+                # TLS 1.1
+
+                if supported_protocols.get("TLSv1.1"):
+
+                    findings.append({
+                        "title": "TLS 1.1 Supported",
+                        "severity": "medium",
+                        "cvss": 5.9,
+                        "category": "Transport Security",
+                        "owasp": "A02:2021 Cryptographic Failures",
+                        "cwe": "CWE-326"
+                    })
+
             except Exception as e:
 
                 ssl_data = {
                     "tls_version": "Unknown",
-                    "certificate_expiry": "Unknown"
+                    "certificate_expiry": "Unknown",
+                    "supported_protocols": {}
                 }
 
                 findings.append({
@@ -164,6 +206,31 @@ def run_full_scan(scan_id, target):
                 })
 
             # =====================================
+            # DNS / WHOIS
+            # =====================================
+
+            try:
+
+                dns_data = future_dns.result()
+
+                findings.extend(
+                    dns_data.get(
+                        "findings",
+                        []
+                    )
+                )
+
+            except Exception as e:
+
+                dns_data = {}
+
+                findings.append({
+                    "title": "DNS/WHOIS Analysis Failed",
+                    "severity": "info",
+                    "error": str(e)
+                })
+
+            # =====================================
             # OWASP ZAP
             # =====================================
 
@@ -199,6 +266,9 @@ def run_full_scan(scan_id, target):
             ssl_data,
             findings
         )
+
+        
+        results["dns_whois"] = dns_data
 
         # =====================================
         # ASSET RISK SCORE

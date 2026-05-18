@@ -63,7 +63,8 @@ def analyze_cookies(target):
                 findings.append({
                     "title": "Cookie Missing SameSite Attribute",
                     "severity": "medium",
-                    "category": "Cookie Security"
+                    "category": "Cookie Security",
+                    "affected_url": f"https://{target}"
                 })
 
         return findings
