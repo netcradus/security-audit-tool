@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 
 def normalize_target(target):
 
+    target = target.strip()
+
     if not target.startswith(
         ("http://", "https://")
     ):
@@ -13,7 +15,9 @@ def normalize_target(target):
 
     parsed = urlparse(target)
 
-    return parsed.netloc
+    hostname = parsed.hostname or parsed.netloc
+
+    return hostname.lower().strip(".") if hostname else ""
 
 
 def is_valid_target(target):
@@ -21,7 +25,9 @@ def is_valid_target(target):
     # Block localhost
     blocked = [
         "localhost",
-        "127.0.0.1"
+        "127.0.0.1",
+        "0.0.0.0",
+        "::1"
     ]
 
     if target.lower() in blocked:

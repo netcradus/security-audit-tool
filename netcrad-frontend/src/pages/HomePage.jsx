@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Shield, Globe, Lock, BarChart2, Server, FileText, ChevronDown, Scan } from 'lucide-react'
+import { Shield, Globe, Lock, BarChart2, Server, FileText, Scan } from 'lucide-react'
 import { useScan } from '../context/ScanContext'
 import { useTheme } from '../context/ThemeContext'
 import { scanApi } from '../api'
@@ -30,6 +30,11 @@ export default function HomePage() {
     } catch { return false }
   }
 
+  const normalizeTarget = (v) => {
+    const u = new URL(v.startsWith('http') ? v : `https://${v}`)
+    return u.hostname.toLowerCase()
+  }
+
   const handleScan = async () => {
     const trimmed = url.trim()
     if (!trimmed) { setError('Please enter a URL'); return }
@@ -37,9 +42,10 @@ export default function HomePage() {
     setError('')
     setLoading(true)
     try {
-      const response = await scanApi.start(trimmed)
+      const target = normalizeTarget(trimmed)
+      const response = await scanApi.start(target)
       const id = response.scan_id
-      startScan(id, trimmed)
+      startScan(id, target)
       navigate(`/scan/${id}`)
     } catch (err) {
       setError(err.message || 'Unable to start scan')
