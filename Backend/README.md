@@ -2,24 +2,24 @@
 
 ## Overview
 
-This project is a modular web security assessment platform designed to perform automated vulnerability analysis on websites and web applications.
+Professional FastAPI-based web security assessment backend designed for automated vulnerability analysis and external attack surface assessment.
 
-The platform integrates multiple security assessment modules including:
+The platform integrates multiple security modules including:
 
-* Nmap port and service detection
-* OWASP ZAP passive scanning
-* HTTP security header analysis
-* Cookie security analysis
-* SSL/TLS analysis
-* SSL certificate expiry analysis
-* CVSS scoring
-* OWASP/CWE vulnerability mapping
-* Professional PDF report generation
-* Asset risk scoring
-* Scan history management
-* Asynchronous/background scanning
-
-The system is built using FastAPI and follows a modular backend architecture suitable for expansion into a full vulnerability management platform or SOC-oriented security assessment solution.
+- Nmap port and service detection
+- OWASP ZAP passive scanning
+- HTTP security header analysis
+- Cookie security analysis
+- SSL/TLS analysis
+- SSL certificate expiry analysis
+- DNS/WHOIS intelligence
+- SPF/DMARC validation
+- Risk scoring
+- OWASP/CWE vulnerability mapping
+- Professional PDF report generation
+- Asset risk scoring
+- Scan history persistence
+- Parallel background scanning
 
 ---
 
@@ -27,41 +27,55 @@ The system is built using FastAPI and follows a modular backend architecture sui
 
 ## Security Scanning
 
-* Nmap-based port scanning
-* Service and version detection
-* HTTP security header analysis
-* Cookie security checks
-* HTTP methods analysis
-* SSL/TLS version detection
-* SSL certificate expiry analysis
-* OWASP ZAP passive scanning
+- Nmap-based port scanning
+- Service and version detection
+- HTTP security header analysis
+- Cookie security checks
+- HTTP methods analysis
+- SSL/TLS version detection
+- SSL certificate expiry analysis
+- OWASP ZAP passive scanning
+- DNS reconnaissance
+- WHOIS analysis
+- SPF validation
+- DMARC validation
+
+---
 
 ## Vulnerability Intelligence
 
-* CVSS scoring
-* OWASP Top 10 mapping
-* CWE mapping
-* Vulnerability categorization
-* Asset risk scoring
-* Deduplication engine
+- Risk scoring
+- OWASP Top 10 mapping
+- CWE mapping
+- Vulnerability categorization
+- Asset risk scoring
+- Deduplication engine
+
+---
 
 ## Reporting
 
-* Professional PDF report generation
-* Executive summary generation
-* Detailed findings section
-* Risk overview tables
-* Open ports and services reporting
-* Asset information section
-* Conclusion and remediation guidance
+- Professional PDF report generation
+- Dynamic executive summary
+- Detailed findings section
+- Risk overview tables
+- DNS/WHOIS intelligence section
+- Open ports and services reporting
+- Asset information section
+- Conclusion and remediation guidance
+- Auditor metadata support
 
-## Platform Features
+---
 
-* Async/background scanning
-* Scan history tracking
-* Modular architecture
-* REST API support
-* Frontend-ready JSON responses
+## Infrastructure & Security
+
+- API key authentication
+- Rate limiting using slowapi
+- SQLite-based persistence
+- Scan lifecycle tracking
+- API versioning
+- CORS middleware
+- Parallel execution using ThreadPoolExecutor
 
 ---
 
@@ -72,6 +86,8 @@ Client / Frontend
         ↓
 FastAPI API Layer
         ↓
+Authentication + Rate Limiting
+        ↓
 Scan Runner Engine
         ↓
 Scanner Modules
@@ -81,33 +97,36 @@ Scanner Modules
  ├── SSL Analyzer
  ├── SSL Expiry Analyzer
  ├── HTTP Methods Analyzer
+ ├── DNS/WHOIS Analyzer
  └── OWASP ZAP Scanner
         ↓
 Aggregation Engine
         ↓
-CVSS + OWASP/CWE Enrichment
+Risk Score + OWASP/CWE Enrichment
         ↓
 Risk Scoring Engine
         ↓
 Professional Report Generator
         ↓
-Scan History Storage
+SQLite Persistence Layer
 ```
 
 ---
 
 # Tech Stack
 
-| Component             | Technology              |
-| --------------------- | ----------------------- |
-| Backend Framework     | FastAPI                 |
-| Language              | Python                  |
-| Port Scanning         | Nmap                    |
-| Web Security Scanning | OWASP ZAP               |
-| PDF Reports           | ReportLab               |
-| Async Processing      | FastAPI BackgroundTasks |
-| API Testing           | Postman                 |
-| Deployment Ready      | Docker Compatible       |
+| Component | Technology |
+|---|---|
+| Backend Framework | FastAPI |
+| Language | Python |
+| Database | SQLite |
+| Port Scanning | Nmap |
+| Web Security Scanning | OWASP ZAP |
+| PDF Reports | ReportLab |
+| DNS Analysis | dnspython |
+| WHOIS | python-whois |
+| Rate Limiting | slowapi |
+| Background Execution | ThreadPoolExecutor |
 
 ---
 
@@ -116,7 +135,7 @@ Scan History Storage
 ## 1. Clone Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/netcradus/security-audit-tool.git
 cd Backend
 ```
 
@@ -154,13 +173,11 @@ pip install -r requirements.txt
 
 ---
 
-## 5. Install Nmap
+# Required External Tools
 
-Download and install Nmap:
+## Install Nmap
 
-* [https://nmap.org/download.html](https://nmap.org/download.html)
-
-Ensure Nmap is added to system PATH.
+https://nmap.org/download.html
 
 Verify:
 
@@ -170,39 +187,87 @@ nmap --version
 
 ---
 
-## 6. Install OWASP ZAP
+## Install OWASP ZAP
 
-Download:
+https://www.zaproxy.org/download/
 
-* [https://www.zaproxy.org/download/](https://www.zaproxy.org/download/)
+Run ZAP before starting backend.
 
-Run OWASP ZAP Desktop before starting scans.
-
-Default API Port:
+Expected proxy:
 
 ```text
 127.0.0.1:8080
 ```
 
-Verify:
+---
 
-```bash
-netstat -ano | findstr 8080
+# Environment Variables
+
+Create a `.env` file in project root.
+
+## Example
+
+```env
+API_KEY=your_secure_api_key
+REPORTS_DIR=reports
+ZAP_PROXY=http://127.0.0.1:8080
 ```
 
 ---
 
-# Running the Project
+# Authentication
 
-## Start FastAPI Server
+All API endpoints require:
 
-```bash
-python -m uvicorn app.main:app --reload
+```http
+x-api-key
+```
+
+Example:
+
+```http
+x-api-key: your_api_key
 ```
 
 ---
 
-## API Documentation
+# Running Backend
+
+```bash
+uvicorn app.main:app --reload
+```
+
+---
+
+# API Versioning
+
+All routes are versioned using:
+
+```text
+/api/v1
+```
+
+---
+
+# Database
+
+SQLite database:
+
+```text
+scan_history.db
+```
+
+Tracks:
+
+- scan status
+- timestamps
+- duration
+- findings
+- reports
+
+---
+
+# API Documentation
 
 Swagger UI:
 
@@ -212,285 +277,42 @@ http://127.0.0.1:8000/docs
 
 ---
 
-# Environment Variables
+# PDF Reports
 
-Create a `.env` file in project root.
+Generated reports include:
 
-## Example `.env`
-
-```env
-ZAP_API_KEY=your_zap_api_key
-ZAP_HOST=127.0.0.1
-ZAP_PORT=8080
-REPORTS_DIR=reports
-SCAN_TIMEOUT=60
-```
-
----
-
-# Recommended `.gitignore`
-
-```gitignore
-venv/
-__pycache__/
-*.pyc
-.env
-reports/
-*.pdf
-.history/
-.idea/
-.vscode/
-```
-
----
-
-# API Documentation
-
-# Base URL
-
-```text
-http://127.0.0.1:8000
-```
-
----
-
-# 1. Start Scan
-
-## Endpoint
-
-```http
-POST /scan
-```
-
-## Request Body
-
-```json
-{
-  "target": "example.com"
-}
-```
-
----
-
-## Example Response
-
-```json
-{
-  "scan_id": "123e4567-e89b-12d3-a456-426614174000",
-  "message": "Scan started"
-}
-```
-
----
-
-# 2. Get Scan Result
-
-## Endpoint
-
-```http
-GET /scan/{scan_id}
-```
-
----
-
-## Example Response
-
-```json
-{
-  "target": "example.com",
-  "status": "completed",
-  "results": {
-    "target": "example.com",
-    "summary": {
-      "critical": 0,
-      "high": 0,
-      "medium": 2,
-      "low": 0,
-      "info": 0
-    },
-    "ports": [
-      {
-        "port": 80,
-        "state": "open",
-        "service": "http",
-        "version": "nginx"
-      }
-    ],
-    "ssl": {
-      "tls_version": "TLSv1.3",
-      "certificate_expiry": "2026-10-10"
-    },
-    "findings": [
-      {
-        "title": "Missing Content-Security-Policy Header",
-        "severity": "medium",
-        "cvss": 5.5,
-        "category": "Security Misconfiguration",
-        "owasp": "A05:2021 Security Misconfiguration",
-        "cwe": "CWE-693"
-      }
-    ],
-    "asset_risk": "Medium"
-  },
-  "report": "reports/report.pdf"
-}
-```
-
----
-
-# 3. Get Scan History
-
-## Endpoint
-
-```http
-GET /history
-```
-
----
-
-## Example Response
-
-```json
-{
-  "scan_id": {
-    "target": "example.com",
-    "status": "completed"
-  }
-}
-```
-
----
-
-# Frontend Integration Guide
-
-## Recommended Frontend Stack
-
-* React
-* Next.js
-* Tailwind CSS
-* Axios
-* Recharts
-
----
-
-# Frontend Pages Recommendation
-
-| Page           | Purpose                 |
-| -------------- | ----------------------- |
-| Dashboard      | Scan overview           |
-| Start Scan     | Submit targets          |
-| Scan Result    | Detailed scan results   |
-| Reports        | Download generated PDFs |
-| History        | Previous scans          |
-| Risk Analytics | Charts and statistics   |
-
----
-
-# Important Frontend Fields
-
-## Findings Array
-
-Frontend should render:
-
-* title
-* severity
-* cvss
-* category
-* owasp
-* cwe
-
----
-
-## Severity Colors
-
-| Severity | Suggested Color |
-| -------- | --------------- |
-| critical | Red             |
-| high     | Orange          |
-| medium   | Yellow          |
-| low      | Green           |
-| info     | Blue            |
-
----
-
-## Scan Status States
-
-| Status    | Meaning          |
-| --------- | ---------------- |
-| pending   | Scan queued      |
-| running   | Scan in progress |
-| completed | Scan completed   |
-| failed    | Scan failed      |
-
----
-
-# Folder Structure
-
-```text
-app/
-├── api/
-│   └── scan.py
-│
-├── core/
-│   ├── aggregator.py
-│   ├── cvss_engine.py
-│   ├── deduplicator.py
-│   ├── report_generator.py
-│   ├── risk_scoring.py
-│   ├── scan_runner.py
-│   └── vulnerability_mapper.py
-│
-├── scanners/
-│   ├── cookie_analyzer.py
-│   ├── header_analyzer.py
-│   ├── http_methods.py
-│   ├── nmap_scanner.py
-│   ├── ssl_analyzer.py
-│   ├── ssl_expiry.py
-│   └── zap_scanner.py
-│
-├── storage/
-│   └── history.py
-│
-└── main.py
-```
-
----
-
-# Current Limitations
-
-* In-memory scan history storage
-* Single-node architecture
-* Passive ZAP scanning only
-* No authentication yet
-* No database persistence yet
-* No frontend dashboard yet
-
----
-
-# Future Improvements
-
-* PostgreSQL integration
-* React frontend dashboard
-* JWT authentication
-* Docker deployment
-* WebSocket live scan updates
-* Scheduled scans
-* Real CVSS v3.1 calculations
-* Threat intelligence integration
-* SIEM integration
-* Multi-user support
+- Dynamic Executive Summary
+- Risk Overview
+- DNS/WHOIS Intelligence
+- SSL/TLS Information
+- Findings
+- Recommendations
+- Open Ports
+- Asset Risk
+- Auditor Information
 
 ---
 
 # Security Notes
 
-* Use only on authorized targets
-* Active scanning should be carefully controlled
-* Do not scan third-party systems without permission
-* OWASP ZAP must be running for ZAP integration
+- Use only on authorized targets
+- OWASP ZAP must be running
+- Nmap must be installed
+- Private/internal IP ranges are blocked
+- Rate limiting enabled
 
 ---
+
+# Future Improvements
+
+- Real CVSS v3.1 implementation
+- JWT authentication
+- Docker deployment
+- Redis queues
+- Scheduled scanning
+- WebSocket scan updates
+- SIEM integration
+- Multi-user support
 
 # License
 
